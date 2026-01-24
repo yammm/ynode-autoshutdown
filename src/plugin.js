@@ -86,15 +86,23 @@ async function autoShutdownPlugin(fastify, options = {}) {
         force: false, // use closeAllConnections() after close (dangerous)
         reportLoad: false, // If true, sends heartbeat with Event Loop Lag
         heartbeatInterval: 2000, // ms
+        hookTimeout: 5000, // ms
+        memoryLimit: 0, // MB (0 = disabled)
     };
     const cfg = { ...defaults, ...options };
-    const { sleep, grace, ignoreUrls, jitter, force, reportLoad, heartbeatInterval } = cfg;
+    const { sleep, grace, ignoreUrls, jitter, force, reportLoad, heartbeatInterval, hookTimeout, memoryLimit } = cfg;
 
     if (typeof sleep !== "number" || sleep <= 0) {
         throw new Error("@ynode/autoshutdown: `sleep` must be > 0");
     }
     if (typeof grace !== "number" || grace < 0) {
         throw new Error("@ynode/autoshutdown: `grace` must be >= 0");
+    }
+    if (typeof cfg.hookTimeout !== "number" || cfg.hookTimeout < 0) {
+        throw new Error("@ynode/autoshutdown: `hookTimeout` must be >= 0");
+    }
+    if (typeof cfg.memoryLimit !== "number" || cfg.memoryLimit < 0) {
+        throw new Error("@ynode/autoshutdown: `memoryLimit` must be >= 0");
     }
     if (typeof jitter !== "number" || jitter < 0) {
         throw new Error("@ynode/autoshutdown: `jitter` must be >= 0");
@@ -107,7 +115,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
     let intervalTimer = null;
 
     function startHeartbeat() {
-        if (!reportLoad || intervalTimer) {
+        if ((!reportLoad && memoryLimit === 0) || intervalTimer) {
             return;
         }
 
@@ -116,8 +124,22 @@ async function autoShutdownPlugin(fastify, options = {}) {
             const now = Date.now();
             const lag = Math.max(0, now - lastCheck - heartbeatInterval);
             lastCheck = now;
-            if (process.send) {
-                process.send({ cmd: "heartbeat", lag, memory: process.memoryUsage() });
+
+            const mem = process.memoryUsage();
+
+            // Check memory limit (MB) -> RSS matches standard container limits best
+            if (memoryLimit > 0) {
+                const rssMb = mem.rss / 1024 / 1024;
+                if (rssMb > memoryLimit) {
+                    log.warn({ rssMb, memoryLimit }, "Memory limit exceeded; shutting down");
+                    shutdown();
+                    // Don't continue to send heartbeat if we are shutting down? 
+                    // Proceeding to send one last heartbeat might be useful.
+                }
+            }
+
+            if (reportLoad && process.send) {
+                process.send({ cmd: "heartbeat", lag, memory: mem });
             }
         }, heartbeatInterval);
     }
@@ -226,7 +248,20 @@ async function autoShutdownPlugin(fastify, options = {}) {
         // Run registered cleanup hooks (allow veto with `false`)
         for (const hook of shutdownHooks) {
             try {
-                if ((await hook(fastify)) === false) {
+                // Wrap hook in a timeout
+                const hookPromise = Promise.resolve(hook(fastify));
+                const timeoutPromise = new Promise((resolve) =>
+                    setTimeout(() => resolve("TIMEOUT"), hookTimeout)
+                );
+
+                const result = await Promise.race([hookPromise, timeoutPromise]);
+
+                if (result === "TIMEOUT") {
+                    log.error({ hook: hook.name || "anonymous" }, "onAutoShutdown hook timed out");
+                    continue; // Proceed to shutdown if hook hangs
+                }
+
+                if (result === false) {
                     log.info("Shutdown cancelled by an onAutoShutdown hook; rescheduling");
                     isShuttingDown = false; // Reset the flag before rescheduling
                     return schedule();

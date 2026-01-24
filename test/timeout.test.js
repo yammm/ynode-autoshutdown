@@ -67,6 +67,8 @@ describe("Shutdown Hook Safety", () => {
 
         assert.strictEqual(closeCalled, false, "Shutdown should have been cancelled by veto");
 
+        await app.close();
+
         process.exit = originalExit;
     });
 });

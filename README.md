@@ -93,6 +93,8 @@ The plugin accepts the following options:
 | `force`             | `boolean`                 | `false` | If `true`, use `server.closeAllConnections()` after close. ⚠️ **Dangerous**.      |
 | `reportLoad`        | `boolean`                 | `false` | If `true`, sends IPC heartbeat messages with Event Loop Lag and memory usage.     |
 | `heartbeatInterval` | `number`                  | `2000`  | Interval in **milliseconds** for sending heartbeat messages (if `reportLoad` is on). |
+| `hookTimeout`       | `number`                  | `5000`  | Maximum time in **milliseconds** to wait for an `onAutoShutdown` hook to resolve. |
+| `memoryLimit`       | `number`                  | `0`     | Memory limit in **Megabytes** (RSS). If exceeded, the server shuts down. `0` = disabled. |
 
 ---
 
@@ -147,6 +149,19 @@ webSocket.on("message", (data) => {
     app.autoshutdown.reset();
 });
 ```
+
+### Resource-Based Shutdown
+
+You can configure the plugin to automatically shut down the worker if it consumes too much memory (RSS). This is useful for "self-healing" long-running workers that might have memory leaks.
+
+```javascript
+await app.register(autoShutdown, {
+    // ... other options
+    memoryLimit: 512, // Shutdown if RSS > 512 MB
+});
+```
+
+> **Note**: This check runs on the same interval as `heartbeatInterval` (default 2000ms), even if `reportLoad` is false.
 
 ### Load Reporting
 
