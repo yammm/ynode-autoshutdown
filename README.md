@@ -90,7 +90,9 @@ The plugin accepts the following options:
 | `grace`      | `number`                  | `5`     | A grace period in **seconds** after startup before the inactivity timer is armed. |
 | `ignoreUrls` | `Array<string \| RegExp>` | `[]`    | An array of URL paths or `RegExp` patterns to ignore for timer logic.             |
 | `jitter`     | `number`                  | `0`     | Adds a random delay (in **seconds**) to the sleep timer to avoid herd shutdowns.  |
-| `force`      | `boolean`                 | `false` | If `true`, use `server.closeAllConnections()` after close. ⚠️ **Dangerous**.      |
+| `force`             | `boolean`                 | `false` | If `true`, use `server.closeAllConnections()` after close. ⚠️ **Dangerous**.      |
+| `reportLoad`        | `boolean`                 | `false` | If `true`, sends IPC heartbeat messages with Event Loop Lag and memory usage.     |
+| `heartbeatInterval` | `number`                  | `2000`  | Interval in **milliseconds** for sending heartbeat messages (if `reportLoad` is on). |
 
 ---
 
@@ -145,6 +147,28 @@ webSocket.on("message", (data) => {
     app.autoshutdown.reset();
 });
 ```
+
+### Load Reporting
+
+When `reportLoad: true` is set, the plugin sends regular heartbeat messages to the parent process via IPC (if `process.send` is available). This is useful for external monitoring or load balancing.
+
+**Message Format:**
+
+```javascript
+{
+  cmd: "heartbeat",
+  lag: 12,           // Event Loop Lag in ms
+  memory: {          // process.memoryUsage()
+    rss: ...,
+    heapTotal: ...,
+    heapUsed: ...,
+    external: ...,
+    arrayBuffers: ...
+  }
+}
+```
+
+This allows a process manager (like a custom cluster manager) to track the health and load of each worker.
 
 ## License
 

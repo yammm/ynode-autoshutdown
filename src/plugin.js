@@ -84,9 +84,11 @@ async function autoShutdownPlugin(fastify, options = {}) {
         ignoreUrls: [], // string | RegExp accepted (backwards-compatible)
         jitter: 5, // seconds (optional)
         force: false, // use closeAllConnections() after close (dangerous)
+        reportLoad: false, // If true, sends heartbeat with Event Loop Lag
+        heartbeatInterval: 2000, // ms
     };
     const cfg = { ...defaults, ...options };
-    const { sleep, grace, ignoreUrls, jitter, force } = cfg;
+    const { sleep, grace, ignoreUrls, jitter, force, reportLoad, heartbeatInterval } = cfg;
 
     if (typeof sleep !== "number" || sleep <= 0) {
         throw new Error("@ynode/autoshutdown: `sleep` must be > 0");
@@ -99,6 +101,22 @@ async function autoShutdownPlugin(fastify, options = {}) {
     }
     if (!Array.isArray(ignoreUrls)) {
         throw new Error("@ynode/autoshutdown: `ignoreUrls` must be an array");
+    }
+
+    // Heartbeat / Load Reporting
+    if (reportLoad) {
+        let lastCheck = Date.now();
+        const intervalTimer = setInterval(() => {
+            const now = Date.now();
+            const lag = Math.max(0, now - lastCheck - heartbeatInterval);
+            lastCheck = now;
+            if (process.send) {
+                process.send({ cmd: "heartbeat", lag, memory: process.memoryUsage() });
+            }
+        }, heartbeatInterval);
+
+        // Ensure we clear interval on close
+        fastify.addHook("onClose", async () => clearInterval(intervalTimer));
     }
 
     const delay = sleep * 1000;
