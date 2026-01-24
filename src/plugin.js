@@ -104,9 +104,15 @@ async function autoShutdownPlugin(fastify, options = {}) {
     }
 
     // Heartbeat / Load Reporting
-    if (reportLoad) {
+    let intervalTimer = null;
+
+    function startHeartbeat() {
+        if (!reportLoad || intervalTimer) {
+            return;
+        }
+
         let lastCheck = Date.now();
-        const intervalTimer = setInterval(() => {
+        intervalTimer = setInterval(() => {
             const now = Date.now();
             const lag = Math.max(0, now - lastCheck - heartbeatInterval);
             lastCheck = now;
@@ -114,10 +120,14 @@ async function autoShutdownPlugin(fastify, options = {}) {
                 process.send({ cmd: "heartbeat", lag, memory: process.memoryUsage() });
             }
         }, heartbeatInterval);
-
-        // Ensure we clear interval on close
-        fastify.addHook("onClose", async () => clearInterval(intervalTimer));
     }
+
+    // Ensure we clear interval on close
+    fastify.addHook("onClose", async () => {
+        if (intervalTimer) {
+            clearInterval(intervalTimer);
+        }
+    });
 
     const delay = sleep * 1000;
     let timer = null;
@@ -259,7 +269,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
         }
 
         // do not allow shutdown while handling a request
-        inFlight++;
+        ++inFlight;
         cancel();
     });
 
@@ -284,6 +294,11 @@ async function autoShutdownPlugin(fastify, options = {}) {
             }
             schedule();
         }, grace * 1000); // if grace === 0 schedule on next tick
+
+        // Start heartbeat after grace period (if configured)
+        setTimeout(() => {
+            startHeartbeat();
+        }, grace * 1000);
     });
 
     fastify.addHook("preClose", async () => {

@@ -57,7 +57,7 @@ const app = Fastify({
 await app.register(autoShutdown, {
     sleep: 10 * 60, // 10 minutes of inactivity
     grace: 5, // 5-second grace period after startup
-    ignoreUrls: ["/healthz"], // This path won't reset the timer
+    ignoreUrls: ["/healthz", /\/admin\/.*/], // Strings or RegExp to ignore
 });
 
 app.get("/", (req, reply) => {
@@ -169,6 +169,19 @@ When `reportLoad: true` is set, the plugin sends regular heartbeat messages to t
 ```
 
 This allows a process manager (like a custom cluster manager) to track the health and load of each worker.
+
+**Parent Process Example:**
+
+```javascript
+import cluster from "node:cluster";
+
+// In your primary process code:
+cluster.on("message", (worker, message) => {
+    if (message.cmd === "heartbeat") {
+        console.log(`Worker ${worker.process.pid} lag: ${message.lag}ms`);
+    }
+});
+```
 
 ## License
 
