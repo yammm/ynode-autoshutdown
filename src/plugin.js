@@ -3,7 +3,7 @@
 /*
 The MIT License (MIT)
 
-Copyright (c) 2025 Michael Welter <me@mikinho.com>
+Copyright (c) 2026 Michael Welter <me@mikinho.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -121,6 +121,12 @@ async function autoShutdownPlugin(fastify, options = {}) {
 
         let lastCheck = Date.now();
         intervalTimer = setInterval(() => {
+            if (process.connected === false) {
+                clearInterval(intervalTimer);
+                intervalTimer = null;
+                return;
+            }
+
             const now = Date.now();
             const lag = Math.max(0, now - lastCheck - heartbeatInterval);
             lastCheck = now;
@@ -145,9 +151,10 @@ async function autoShutdownPlugin(fastify, options = {}) {
     }
 
     // Ensure we clear interval on close
-    fastify.addHook("onClose", async () => {
+    fastify.addHook("preClose", async () => {
         if (intervalTimer) {
             clearInterval(intervalTimer);
+            intervalTimer = null;
         }
     });
 
@@ -251,7 +258,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
                 // Wrap hook in a timeout
                 const hookPromise = Promise.resolve(hook(fastify));
                 const timeoutPromise = new Promise((resolve) =>
-                    setTimeout(() => resolve("TIMEOUT"), hookTimeout)
+                    setTimeout(() => resolve("TIMEOUT"), hookTimeout).unref()
                 );
 
                 const result = await Promise.race([hookPromise, timeoutPromise]);
@@ -328,12 +335,12 @@ async function autoShutdownPlugin(fastify, options = {}) {
                 log.debug(`Grace ended for worker ${process.pid}; arming inactivity timer`);
             }
             schedule();
-        }, grace * 1000); // if grace === 0 schedule on next tick
+        }, grace * 1000).unref(); // if grace === 0 schedule on next tick
 
         // Start heartbeat after grace period (if configured)
         setTimeout(() => {
             startHeartbeat();
-        }, grace * 1000);
+        }, grace * 1000).unref();
     });
 
     fastify.addHook("preClose", async () => {
