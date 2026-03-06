@@ -6,30 +6,20 @@ import autoShutdown from "../src/plugin.js";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe("Shutdown Re-entry Protection", () => {
-    test("repeated shutdown triggers only close once", async () => {
+    test("repeated reset attempts during shutdown do not trigger extra closes", async () => {
         const app = Fastify();
 
         const originalExit = process.exit;
         process.exit = () => { };
 
-        const originalMemoryUsage = process.memoryUsage;
-        process.memoryUsage = () => ({
-            rss: 300 * 1024 * 1024,
-            heapTotal: 0,
-            heapUsed: 0,
-            external: 0,
-            arrayBuffers: 0,
-        });
-
         let closeCalls = 0;
 
         try {
             await app.register(autoShutdown, {
-                sleep: 10,
+                sleep: 0.05,
                 grace: 0,
                 jitter: 0,
-                memoryLimit: 200,
-                heartbeatInterval: 20,
+                exitProcess: false,
             });
 
             const originalClose = app.close.bind(app);
@@ -39,14 +29,22 @@ describe("Shutdown Re-entry Protection", () => {
                 return originalClose(...args);
             };
 
-            await app.listen({ port: 0, host: "127.0.0.1" });
+            app.onAutoShutdown(async () => {
+                // Attempt to re-arm while shutdown is already in progress.
+                for (let i = 0; i < 5; i++) {
+                    app.autoshutdown.reset();
+                    await sleep(10);
+                }
+            });
 
-            await sleep(250);
+            await app.ready();
+            app.autoshutdown.reset();
+
+            await sleep(260);
 
             assert.strictEqual(closeCalls, 1, "close should only run once while shutting down");
         } finally {
             process.exit = originalExit;
-            process.memoryUsage = originalMemoryUsage;
             await app.close().catch(() => { });
         }
     });

@@ -64,10 +64,14 @@ import fp from "fastify-plugin";
  * @param {(string|RegExp)[]} [options.ignoreUrls=[]] URLs or route patterns to ignore for timer logic.
  * @param {number} [options.jitter=5] Optional jitter (seconds) added to the delay to reduce herd exits.
  * @param {boolean} [options.force=false] If true, attempt `server.closeAllConnections()` after close. ⚠️ Dangerous.
+ * @param {boolean} [options.exitProcess=true] If false, closes Fastify but does not call `process.exit`.
  * @param {boolean} [options.reportLoad=false] If true, send IPC heartbeat messages.
  * @param {number} [options.heartbeatInterval=2000] Heartbeat interval in milliseconds (> 0).
  * @param {number} [options.hookTimeout=5000] Max milliseconds to wait for each shutdown hook (>= 0).
  * @param {number} [options.memoryLimit=0] RSS threshold in MB that triggers shutdown (>= 0, 0 disables).
+ * @param {(request: import("fastify").FastifyRequest, path: string) => boolean} [options.ignore] Optional request matcher to ignore timer logic.
+ * @param {(event: object, instance: import("fastify").FastifyInstance) => (void|Promise<void>)} [options.onShutdownStart] Optional lifecycle hook called when shutdown starts.
+ * @param {(event: object, instance: import("fastify").FastifyInstance) => (void|Promise<void>)} [options.onShutdownComplete] Optional lifecycle hook called when shutdown completes/cancels/fails.
  *
  * @description `onAutoShutdown` hooks can return `false` to cancel the shutdown.
  */
@@ -86,15 +90,33 @@ async function autoShutdownPlugin(fastify, options = {}) {
         sleep: 30 * 60, // seconds
         grace: 30, // seconds
         ignoreUrls: [], // string | RegExp accepted (backwards-compatible)
+        ignore: null, // optional request matcher (request, normalizedPath) => boolean
         jitter: 5, // seconds (optional)
         force: false, // use closeAllConnections() after close (dangerous)
+        exitProcess: true, // call process.exit after shutdown
         reportLoad: false, // If true, sends heartbeat with Event Loop Lag
         heartbeatInterval: 2000, // ms
         hookTimeout: 5000, // ms
         memoryLimit: 0, // MB (0 = disabled)
+        onShutdownStart: null, // lifecycle observer
+        onShutdownComplete: null, // lifecycle observer
     };
     const cfg = { ...defaults, ...options };
-    const { sleep, grace, ignoreUrls, jitter, force, reportLoad, heartbeatInterval, hookTimeout, memoryLimit } = cfg;
+    const {
+        sleep,
+        grace,
+        ignoreUrls,
+        ignore,
+        jitter,
+        force,
+        exitProcess,
+        reportLoad,
+        heartbeatInterval,
+        hookTimeout,
+        memoryLimit,
+        onShutdownStart,
+        onShutdownComplete,
+    } = cfg;
 
     if (!Number.isFinite(sleep) || sleep <= 0) {
         throw new Error("@ynode/autoshutdown: `sleep` must be > 0");
@@ -116,6 +138,12 @@ async function autoShutdownPlugin(fastify, options = {}) {
     }
     if (!Array.isArray(ignoreUrls)) {
         throw new Error("@ynode/autoshutdown: `ignoreUrls` must be an array");
+    }
+    if (ignore !== null && typeof ignore !== "function") {
+        throw new Error("@ynode/autoshutdown: `ignore` must be a function");
+    }
+    if (typeof exitProcess !== "boolean") {
+        throw new Error("@ynode/autoshutdown: `exitProcess` must be a boolean");
     }
 
     // Heartbeat / Load Reporting
@@ -172,11 +200,35 @@ async function autoShutdownPlugin(fastify, options = {}) {
     let nextAt = null;
     let inFlight = 0;
     let isShuttingDown = false;
+    const kHookTimeout = Symbol("hook-timeout");
+    const kIgnored = Symbol("autoshutdown.ignored");
 
     const shutdownHooks = [];
+    const shutdownStartHooks = [];
+    const shutdownCompleteHooks = [];
+
+    if (typeof onShutdownStart === "function") {
+        shutdownStartHooks.push(onShutdownStart);
+    }
+    if (typeof onShutdownComplete === "function") {
+        shutdownCompleteHooks.push(onShutdownComplete);
+    }
+
     fastify.decorate("onAutoShutdown", (fn) => {
         if (typeof fn === "function") {
             shutdownHooks.push(fn);
+        }
+    });
+
+    fastify.decorate("onAutoShutdownStart", (fn) => {
+        if (typeof fn === "function") {
+            shutdownStartHooks.push(fn);
+        }
+    });
+
+    fastify.decorate("onAutoShutdownComplete", (fn) => {
+        if (typeof fn === "function") {
+            shutdownCompleteHooks.push(fn);
         }
     });
 
@@ -219,6 +271,22 @@ async function autoShutdownPlugin(fastify, options = {}) {
         );
     }
 
+    function shouldIgnoreRequest(request, path) {
+        if (shouldIgnore(path, ignoreUrls)) {
+            return true;
+        }
+
+        if (typeof ignore === "function") {
+            try {
+                return Boolean(ignore(request, path));
+            } catch (err) {
+                log.warn({ err }, "Error in `ignore` matcher (ignored)");
+            }
+        }
+
+        return false;
+    }
+
     function normalizePath(path) {
         if (typeof path !== "string") {
             return "";
@@ -229,6 +297,31 @@ async function autoShutdownPlugin(fastify, options = {}) {
             return path;
         }
         return path.slice(0, idx);
+    }
+
+    async function runHookWithTimeout(hook, args, kind) {
+        try {
+            const hookPromise = Promise.resolve(hook(...args));
+            const timeoutPromise = new Promise((resolve) =>
+                setTimeout(() => resolve(kHookTimeout), hookTimeout).unref()
+            );
+
+            const result = await Promise.race([hookPromise, timeoutPromise]);
+            if (result === kHookTimeout) {
+                log.error({ hook: hook.name || "anonymous", kind }, `${kind} hook timed out`);
+                return kHookTimeout;
+            }
+            return result;
+        } catch (err) {
+            log.error({ err }, `Error in ${kind} hook (ignored)`);
+            return undefined;
+        }
+    }
+
+    async function runLifecycleHooks(list, event, kind) {
+        for (const hook of list) {
+            await runHookWithTimeout(hook, [event, fastify], kind);
+        }
     }
 
     /**
@@ -269,7 +362,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
      * then reap idle keep-alives, optionally drop all connections, and exit.
      * @private
      */
-    async function shutdown() {
+    async function shutdown(trigger = "idle_timer") {
         if (isShuttingDown) {
             return;
         }
@@ -277,31 +370,35 @@ async function autoShutdownPlugin(fastify, options = {}) {
         isShuttingDown = true;
         cancel();
         stopHeartbeat();
+        const startedAt = Date.now();
+        const startEvent = {
+            trigger,
+            pid: process.pid,
+            inFlight,
+            nextAt,
+            startedAt,
+        };
+        await runLifecycleHooks(shutdownStartHooks, startEvent, "onAutoShutdownStart");
 
-        log.warn({ pid: process.pid, nextAt }, "Auto-shutdown: idle timer fired");
+        log.warn({ pid: process.pid, nextAt, trigger }, "Auto-shutdown: shutdown started");
         // Run registered cleanup hooks (allow veto with `false`)
         for (const hook of shutdownHooks) {
-            try {
-                // Wrap hook in a timeout
-                const hookPromise = Promise.resolve(hook(fastify));
-                const timeoutPromise = new Promise((resolve) =>
-                    setTimeout(() => resolve("TIMEOUT"), hookTimeout).unref()
+            const result = await runHookWithTimeout(hook, [fastify], "onAutoShutdown");
+            if (result === false) {
+                log.info("Shutdown cancelled by an onAutoShutdown hook; rescheduling");
+                isShuttingDown = false; // Reset the flag before rescheduling
+                startHeartbeat();
+                await runLifecycleHooks(
+                    shutdownCompleteHooks,
+                    {
+                        ...startEvent,
+                        completedAt: Date.now(),
+                        durationMs: Date.now() - startedAt,
+                        outcome: "vetoed",
+                    },
+                    "onAutoShutdownComplete",
                 );
-
-                const result = await Promise.race([hookPromise, timeoutPromise]);
-
-                if (result === "TIMEOUT") {
-                    log.error({ hook: hook.name || "anonymous" }, "onAutoShutdown hook timed out");
-                    continue; // Proceed to shutdown if hook hangs
-                }
-
-                if (result === false) {
-                    log.info("Shutdown cancelled by an onAutoShutdown hook; rescheduling");
-                    isShuttingDown = false; // Reset the flag before rescheduling
-                    return schedule();
-                }
-            } catch (err) {
-                log.error({ err }, "Error in onAutoShutdown hook (ignored)");
+                return schedule();
             }
         }
 
@@ -323,17 +420,43 @@ async function autoShutdownPlugin(fastify, options = {}) {
                 }
             }
 
-            process.exit(0);
+            await runLifecycleHooks(
+                shutdownCompleteHooks,
+                {
+                    ...startEvent,
+                    completedAt: Date.now(),
+                    durationMs: Date.now() - startedAt,
+                    outcome: "closed",
+                },
+                "onAutoShutdownComplete",
+            );
+            if (exitProcess) {
+                process.exit(0);
+            }
         } catch (err) {
             log.error({ err }, "Error during fastify.close()");
-            process.exit(1);
+            await runLifecycleHooks(
+                shutdownCompleteHooks,
+                {
+                    ...startEvent,
+                    completedAt: Date.now(),
+                    durationMs: Date.now() - startedAt,
+                    outcome: "error",
+                    error: err,
+                },
+                "onAutoShutdownComplete",
+            );
+            if (exitProcess) {
+                process.exit(1);
+            }
         }
     }
 
     // Hooks (promise style)
     fastify.addHook("onRequest", async (request, reply) => {
         const path = normalizePath(request.routeOptions?.url || request.url); // route pattern if available
-        if (shouldIgnore(path, ignoreUrls)) {
+        request[kIgnored] = shouldIgnoreRequest(request, path);
+        if (request[kIgnored]) {
             return;
         }
 
@@ -343,8 +466,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
     });
 
     fastify.addHook("onResponse", async (request, reply) => {
-        const path = normalizePath(request.routeOptions?.url || request.url);
-        if (shouldIgnore(path, ignoreUrls)) {
+        if (request[kIgnored]) {
             return;
         }
         inFlight = Math.max(0, inFlight - 1);
@@ -362,7 +484,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
                 log.debug(`Grace ended for worker ${process.pid}; arming inactivity timer`);
             }
             schedule();
-        }, grace * 1000).unref(); // if grace === 0 schedule on next tick
+        }, grace * 1000).unref();
 
         // Start heartbeat after grace period (if configured)
         setTimeout(() => {

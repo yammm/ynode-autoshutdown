@@ -48,4 +48,34 @@ describe("Option Validation", () => {
             await app.close();
         }
     });
+
+    test("rejects non-function ignore matcher", async () => {
+        const app = Fastify();
+        try {
+            app.register(autoShutdown, {
+                ignore: "not-a-function",
+            });
+            await assert.rejects(
+                app.ready(),
+                /`ignore` must be a function/,
+            );
+        } finally {
+            await app.close();
+        }
+    });
+
+    test("rejects non-boolean exitProcess", async () => {
+        const app = Fastify();
+        try {
+            app.register(autoShutdown, {
+                exitProcess: 1,
+            });
+            await assert.rejects(
+                app.ready(),
+                /`exitProcess` must be a boolean/,
+            );
+        } finally {
+            await app.close();
+        }
+    });
 });

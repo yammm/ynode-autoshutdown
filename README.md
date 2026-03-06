@@ -89,12 +89,16 @@ The plugin accepts the following options:
 | `sleep`      | `number`                  | `1800`  | The inactivity period in **seconds** before shutting down.                        |
 | `grace`      | `number`                  | `30`    | A grace period in **seconds** after startup before the inactivity timer is armed. |
 | `ignoreUrls` | `Array<string \| RegExp>` | `[]`    | An array of URL paths or `RegExp` patterns to ignore for timer logic.             |
+| `ignore`     | `(request, path) => boolean` | `null` | Optional function matcher for ignore logic. Return `true` to ignore that request. |
 | `jitter`     | `number`                  | `5`     | Adds a random delay (in **seconds**) to the sleep timer to avoid herd shutdowns.  |
 | `force`             | `boolean`                 | `false` | If `true`, use `server.closeAllConnections()` after close. ⚠️ **Dangerous**.      |
+| `exitProcess`       | `boolean`                 | `true`  | If `false`, plugin closes Fastify but does not call `process.exit(...)`. |
 | `reportLoad`        | `boolean`                 | `false` | If `true`, sends IPC heartbeat messages with Event Loop Lag and memory usage.     |
 | `heartbeatInterval` | `number`                  | `2000`  | Interval in **milliseconds** for heartbeats and memory checks (**must be > 0**). |
 | `hookTimeout`       | `number`                  | `5000`  | Maximum time in **milliseconds** to wait for an `onAutoShutdown` hook to resolve. |
 | `memoryLimit`       | `number`                  | `0`     | Memory limit in **Megabytes** (RSS). If exceeded, the server shuts down. `0` = disabled. |
+| `onShutdownStart`   | `(event, app) => void`    | `null` | Optional lifecycle observer called when shutdown starts. |
+| `onShutdownComplete`| `(event, app) => void`    | `null` | Optional lifecycle observer called with outcome (`closed`, `vetoed`, `error`). |
 
 ---
 
@@ -135,8 +139,10 @@ await app.register(autoShutdown, {
 ## Production Caveats
 
 - The plugin calls `process.exit(0)` after successful shutdown and `process.exit(1)` if `fastify.close()` fails.
+- Set `exitProcess: false` when this plugin runs in-process with other workloads and you do not want worker exit behavior.
 - In the same Fastify encapsulation scope, duplicate plugin registration is skipped with a warning.
 - String `ignoreUrls` are exact path matches; query strings are stripped before matching. Use `RegExp` for pattern-based matching.
+- Use `ignore(request, path)` for method/header/query-aware matching.
 - `force: true` calls `server.closeAllConnections()` and may drop active clients abruptly.
 - `heartbeatInterval` drives both heartbeat emission and memory-limit checks, so very low values can add overhead.
 
@@ -169,6 +175,55 @@ app.get("/start-task", (request, reply) => {
 app.get("/stop-task", (request, reply) => {
     isTaskRunning = false;
     reply.send({ message: "Critical task stopped. Auto-shutdown is now allowed." });
+});
+```
+
+### Lifecycle Hooks (Metrics / Observability)
+
+You can observe shutdown lifecycles either through registration options or decorators:
+
+- `onShutdownStart(event, app)`
+- `onShutdownComplete(event, app)`
+- `app.onAutoShutdownStart(fn)`
+- `app.onAutoShutdownComplete(fn)`
+
+`event` includes fields such as:
+
+- `trigger`: `"idle_timer"` or `"memory_limit"`
+- `startedAt`, `completedAt`, `durationMs`
+- `outcome`: `"closed"`, `"vetoed"`, or `"error"` (complete hook)
+- `pid`, `inFlight`, `nextAt`
+
+```javascript
+await app.register(autoShutdown, {
+    sleep: 10 * 60,
+    exitProcess: false,
+    onShutdownStart: (event) => {
+        app.log.info({ event }, "shutdown started");
+    },
+    onShutdownComplete: (event) => {
+        app.log.info({ event }, "shutdown finished");
+    },
+});
+
+app.onAutoShutdownComplete((event) => {
+    if (event.outcome === "error") {
+        app.log.error({ event }, "shutdown failed");
+    }
+});
+```
+
+### Custom Ignore Matcher
+
+When URL/RegExp matching is not enough, use `ignore(request, path)` to define dynamic logic:
+
+```javascript
+await app.register(autoShutdown, {
+    sleep: 10 * 60,
+    ignore: (request, path) => {
+        // Ignore GET health checks and metrics probes
+        return request.method === "GET" && (path === "/healthz" || path.startsWith("/metrics"));
+    },
 });
 ```
 
