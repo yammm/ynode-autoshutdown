@@ -114,6 +114,13 @@ async function autoShutdownPlugin(fastify, options = {}) {
     // Heartbeat / Load Reporting
     let intervalTimer = null;
 
+    function stopHeartbeat() {
+        if (intervalTimer) {
+            clearInterval(intervalTimer);
+            intervalTimer = null;
+        }
+    }
+
     function startHeartbeat() {
         if ((!reportLoad && memoryLimit === 0) || intervalTimer) {
             return;
@@ -122,8 +129,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
         let lastCheck = Date.now();
         intervalTimer = setInterval(() => {
             if (process.connected === false) {
-                clearInterval(intervalTimer);
-                intervalTimer = null;
+                stopHeartbeat();
                 return;
             }
 
@@ -138,9 +144,8 @@ async function autoShutdownPlugin(fastify, options = {}) {
                 const rssMb = mem.rss / 1024 / 1024;
                 if (rssMb > memoryLimit) {
                     log.warn({ rssMb, memoryLimit }, "Memory limit exceeded; shutting down");
-                    shutdown();
-                    // Don't continue to send heartbeat if we are shutting down? 
-                    // Proceeding to send one last heartbeat might be useful.
+                    void shutdown();
+                    return;
                 }
             }
 
@@ -152,10 +157,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
 
     // Ensure we clear interval on close
     fastify.addHook("preClose", async () => {
-        if (intervalTimer) {
-            clearInterval(intervalTimer);
-            intervalTimer = null;
-        }
+        stopHeartbeat();
     });
 
     const delay = sleep * 1000;
@@ -249,7 +251,13 @@ async function autoShutdownPlugin(fastify, options = {}) {
      * @private
      */
     async function shutdown() {
+        if (isShuttingDown) {
+            return;
+        }
+
         isShuttingDown = true;
+        cancel();
+        stopHeartbeat();
 
         log.warn({ pid: process.pid, nextAt }, "Auto-shutdown: idle timer fired");
         // Run registered cleanup hooks (allow veto with `false`)
