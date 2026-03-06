@@ -92,11 +92,53 @@ The plugin accepts the following options:
 | `jitter`     | `number`                  | `5`     | Adds a random delay (in **seconds**) to the sleep timer to avoid herd shutdowns.  |
 | `force`             | `boolean`                 | `false` | If `true`, use `server.closeAllConnections()` after close. ⚠️ **Dangerous**.      |
 | `reportLoad`        | `boolean`                 | `false` | If `true`, sends IPC heartbeat messages with Event Loop Lag and memory usage.     |
-| `heartbeatInterval` | `number`                  | `2000`  | Interval in **milliseconds** for sending heartbeat messages (if `reportLoad` is on). |
+| `heartbeatInterval` | `number`                  | `2000`  | Interval in **milliseconds** for heartbeats and memory checks (**must be > 0**). |
 | `hookTimeout`       | `number`                  | `5000`  | Maximum time in **milliseconds** to wait for an `onAutoShutdown` hook to resolve. |
 | `memoryLimit`       | `number`                  | `0`     | Memory limit in **Megabytes** (RSS). If exceeded, the server shuts down. `0` = disabled. |
 
 ---
+
+## Timing Units (Reference)
+
+| Option              | Unit | Example |
+| ------------------- | ---- | ------- |
+| `sleep`             | seconds | `600` = 10 minutes |
+| `grace`             | seconds | `30` = 30 seconds |
+| `jitter`            | seconds | `5` = up to 5s of jitter |
+| `heartbeatInterval` | milliseconds | `2000` = 2 seconds |
+| `hookTimeout`       | milliseconds | `5000` = 5 seconds |
+| `memoryLimit`       | megabytes (RSS) | `512` = 512 MB RSS |
+
+```javascript
+await app.register(autoShutdown, {
+    sleep: 15 * 60, // seconds
+    grace: 30, // seconds
+    jitter: 5, // seconds
+    heartbeatInterval: 2000, // ms
+    hookTimeout: 5000, // ms
+    memoryLimit: 512, // MB (RSS)
+});
+```
+
+## Behavior Matrix
+
+| Situation | `inFlight` | Timer Action | Shutdown Result |
+| --------- | ---------- | ------------ | --------------- |
+| Startup grace period | `0` | Timer waits until grace ends | No shutdown during grace |
+| Non-ignored request starts | `+1` | Timer is cancelled | Shutdown paused while request runs |
+| Last non-ignored response completes | back to `0` | Timer is re-armed | Shutdown may occur after `sleep` (+ jitter) |
+| Ignored request (string/RegExp match) | unchanged | Timer is unchanged | Request does not delay shutdown |
+| Hook returns `false` | unchanged | Timer is re-armed | Shutdown is vetoed for that cycle |
+| Hook throws or times out | unchanged | Continue current shutdown | Shutdown proceeds |
+| RSS exceeds `memoryLimit` | unchanged | Immediate shutdown sequence | Worker exits after close sequence |
+
+## Production Caveats
+
+- The plugin calls `process.exit(0)` after successful shutdown and `process.exit(1)` if `fastify.close()` fails.
+- In the same Fastify encapsulation scope, duplicate plugin registration is skipped with a warning.
+- String `ignoreUrls` are exact path matches; query strings are stripped before matching. Use `RegExp` for pattern-based matching.
+- `force: true` calls `server.closeAllConnections()` and may drop active clients abruptly.
+- `heartbeatInterval` drives both heartbeat emission and memory-limit checks, so very low values can add overhead.
 
 ## Advanced Usage
 

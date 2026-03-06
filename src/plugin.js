@@ -64,6 +64,10 @@ import fp from "fastify-plugin";
  * @param {(string|RegExp)[]} [options.ignoreUrls=[]] URLs or route patterns to ignore for timer logic.
  * @param {number} [options.jitter=5] Optional jitter (seconds) added to the delay to reduce herd exits.
  * @param {boolean} [options.force=false] If true, attempt `server.closeAllConnections()` after close. ⚠️ Dangerous.
+ * @param {boolean} [options.reportLoad=false] If true, send IPC heartbeat messages.
+ * @param {number} [options.heartbeatInterval=2000] Heartbeat interval in milliseconds (> 0).
+ * @param {number} [options.hookTimeout=5000] Max milliseconds to wait for each shutdown hook (>= 0).
+ * @param {number} [options.memoryLimit=0] RSS threshold in MB that triggers shutdown (>= 0, 0 disables).
  *
  * @description `onAutoShutdown` hooks can return `false` to cancel the shutdown.
  */
@@ -92,19 +96,22 @@ async function autoShutdownPlugin(fastify, options = {}) {
     const cfg = { ...defaults, ...options };
     const { sleep, grace, ignoreUrls, jitter, force, reportLoad, heartbeatInterval, hookTimeout, memoryLimit } = cfg;
 
-    if (typeof sleep !== "number" || sleep <= 0) {
+    if (!Number.isFinite(sleep) || sleep <= 0) {
         throw new Error("@ynode/autoshutdown: `sleep` must be > 0");
     }
-    if (typeof grace !== "number" || grace < 0) {
+    if (!Number.isFinite(grace) || grace < 0) {
         throw new Error("@ynode/autoshutdown: `grace` must be >= 0");
     }
-    if (typeof cfg.hookTimeout !== "number" || cfg.hookTimeout < 0) {
+    if (!Number.isFinite(heartbeatInterval) || heartbeatInterval <= 0) {
+        throw new Error("@ynode/autoshutdown: `heartbeatInterval` must be > 0");
+    }
+    if (!Number.isFinite(cfg.hookTimeout) || cfg.hookTimeout < 0) {
         throw new Error("@ynode/autoshutdown: `hookTimeout` must be >= 0");
     }
-    if (typeof cfg.memoryLimit !== "number" || cfg.memoryLimit < 0) {
+    if (!Number.isFinite(cfg.memoryLimit) || cfg.memoryLimit < 0) {
         throw new Error("@ynode/autoshutdown: `memoryLimit` must be >= 0");
     }
-    if (typeof jitter !== "number" || jitter < 0) {
+    if (!Number.isFinite(jitter) || jitter < 0) {
         throw new Error("@ynode/autoshutdown: `jitter` must be >= 0");
     }
     if (!Array.isArray(ignoreUrls)) {
@@ -212,6 +219,18 @@ async function autoShutdownPlugin(fastify, options = {}) {
         );
     }
 
+    function normalizePath(path) {
+        if (typeof path !== "string") {
+            return "";
+        }
+
+        const idx = path.indexOf("?");
+        if (idx === -1) {
+            return path;
+        }
+        return path.slice(0, idx);
+    }
+
     /**
      * Clears the existing shutdown timer.
      * @private
@@ -313,7 +332,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
 
     // Hooks (promise style)
     fastify.addHook("onRequest", async (request, reply) => {
-        const path = request.routeOptions?.url || request.url; // route pattern if available
+        const path = normalizePath(request.routeOptions?.url || request.url); // route pattern if available
         if (shouldIgnore(path, ignoreUrls)) {
             return;
         }
@@ -324,7 +343,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
     });
 
     fastify.addHook("onResponse", async (request, reply) => {
-        const path = request.routeOptions?.url || request.url;
+        const path = normalizePath(request.routeOptions?.url || request.url);
         if (shouldIgnore(path, ignoreUrls)) {
             return;
         }
