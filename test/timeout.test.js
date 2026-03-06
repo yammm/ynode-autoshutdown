@@ -17,27 +17,29 @@ describe("Shutdown Hook Safety", () => {
         const originalExit = process.exit;
         process.exit = () => { };
 
-        await app.register(autoShutdown, {
-            sleep: 0.1,
-            grace: 0,
-            jitter: 0,
-            hookTimeout: 0.2, // 200ms timeout for hooks
-        });
+        try {
+            await app.register(autoShutdown, {
+                sleep: 0.1,
+                grace: 0,
+                jitter: 0,
+                hookTimeout: 200, // 200ms timeout for hooks
+            });
 
-        // Add a hanging hook
-        app.onAutoShutdown(async () => {
-            await sleep(1000); // 1 second (longer than 200ms timeout)
-            return false; // try to veto, but should be too late
-        });
+            // Add a hanging hook
+            app.onAutoShutdown(async () => {
+                await sleep(1000); // 1 second (longer than 200ms timeout)
+                return false; // try to veto, but should be too late
+            });
 
-        await app.listen({ port: 0, host: "127.0.0.1" });
+            await app.listen({ port: 0, host: "127.0.0.1" });
 
-        // Wait for sleep (100ms) + timeout (200ms) + buffer
-        await sleep(500);
+            // Wait for sleep (100ms) + timeout (200ms) + buffer
+            await sleep(500);
 
-        assert.strictEqual(closeCalled, true, "Shutdown should have proceeded despite hanging hook");
-
-        process.exit = originalExit;
+            assert.strictEqual(closeCalled, true, "Shutdown should have proceeded despite hanging hook");
+        } finally {
+            process.exit = originalExit;
+        }
     });
 
     test("fast hook works normally (veto)", async (t) => {
@@ -50,25 +52,27 @@ describe("Shutdown Hook Safety", () => {
         const originalExit = process.exit;
         process.exit = () => { };
 
-        await app.register(autoShutdown, {
-            sleep: 0.1,
-            grace: 0,
-            jitter: 0,
-            hookTimeout: 1, // 1s timeout
-        });
+        try {
+            await app.register(autoShutdown, {
+                sleep: 0.1,
+                grace: 0,
+                jitter: 0,
+                hookTimeout: 1000, // 1s timeout
+            });
 
-        app.onAutoShutdown(async () => {
-            return false; // veto immediately
-        });
+            app.onAutoShutdown(async () => {
+                return false; // veto immediately
+            });
 
-        await app.listen({ port: 0, host: "127.0.0.1" });
+            await app.listen({ port: 0, host: "127.0.0.1" });
 
-        await sleep(300);
+            await sleep(300);
 
-        assert.strictEqual(closeCalled, false, "Shutdown should have been cancelled by veto");
+            assert.strictEqual(closeCalled, false, "Shutdown should have been cancelled by veto");
 
-        await app.close();
-
-        process.exit = originalExit;
+            await app.close();
+        } finally {
+            process.exit = originalExit;
+        }
     });
 });

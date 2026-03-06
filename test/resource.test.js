@@ -29,30 +29,32 @@ describe("Resource Based Shutdown", () => {
             arrayBuffers: 0
         });
 
-        await app.register(autoShutdown, {
-            sleep: 10,
-            grace: 0,
-            jitter: 0,
-            reportLoad: false, // ensure monitoring works even if reportLoad is false
-            memoryLimit: 200, // 200MB limit
-            heartbeatInterval: 50, // fast check
-        });
+        try {
+            await app.register(autoShutdown, {
+                sleep: 10,
+                grace: 0,
+                jitter: 0,
+                reportLoad: false, // ensure monitoring works even if reportLoad is false
+                memoryLimit: 200, // 200MB limit
+                heartbeatInterval: 50, // fast check
+            });
 
-        await app.listen({ port: 0, host: "127.0.0.1" });
+            await app.listen({ port: 0, host: "127.0.0.1" });
 
-        // Wait a bit, memory is 100MB < 200MB
-        await sleep(100);
-        assert.strictEqual(closeCalled, false, "Should be running (100MB < 200MB)");
+            // Wait a bit, memory is 100MB < 200MB
+            await sleep(100);
+            assert.strictEqual(closeCalled, false, "Should be running (100MB < 200MB)");
 
-        // Spike memory to 300MB
-        mockRss = 300 * 1024 * 1024;
+            // Spike memory to 300MB
+            mockRss = 300 * 1024 * 1024;
 
-        // Wait for next check
-        await sleep(200);
+            // Wait for next check
+            await sleep(200);
 
-        assert.strictEqual(closeCalled, true, "Should have closed due to memory limit");
-
-        process.exit = originalExit;
-        process.memoryUsage = originalMemoryUsage;
+            assert.strictEqual(closeCalled, true, "Should have closed due to memory limit");
+        } finally {
+            process.exit = originalExit;
+            process.memoryUsage = originalMemoryUsage;
+        }
     });
 });

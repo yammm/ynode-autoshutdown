@@ -17,23 +17,25 @@ describe("Grace Period Logic", () => {
         const originalExit = process.exit;
         process.exit = () => { };
 
-        await app.register(autoShutdown, {
-            sleep: 0.1, // 100ms
-            grace: 0.5, // 500ms
-            jitter: 0,
-        });
+        try {
+            await app.register(autoShutdown, {
+                sleep: 0.1, // 100ms
+                grace: 0.5, // 500ms
+                jitter: 0,
+            });
 
-        await app.listen({ port: 0, host: "127.0.0.1" });
+            await app.listen({ port: 0, host: "127.0.0.1" });
 
-        // At 200ms, sleep (100ms) has passed, but grace (500ms) hasn't.
-        await sleep(200);
-        assert.strictEqual(closeCalled, false, "Should be in grace period");
+            // At 200ms, sleep (100ms) has passed, but grace (500ms) hasn't.
+            await sleep(200);
+            assert.strictEqual(closeCalled, false, "Should be in grace period");
 
-        // Wait for grace to end (500ms) + sleep (100ms) + buffer
-        await sleep(500);
-        assert.strictEqual(closeCalled, true, "Should have closed after grace period ended");
-
-        process.exit = originalExit;
+            // Wait for grace to end (500ms) + sleep (100ms) + buffer
+            await sleep(500);
+            assert.strictEqual(closeCalled, true, "Should have closed after grace period ended");
+        } finally {
+            process.exit = originalExit;
+        }
     });
 
     test("should delay heartbeat start until grace period ends", async (t) => {
@@ -48,27 +50,30 @@ describe("Grace Period Logic", () => {
         const originalExit = process.exit;
         process.exit = () => { };
 
-        await app.register(autoShutdown, {
-            sleep: 10,
-            grace: 0.2, // 200ms
-            jitter: 0,
-            reportLoad: true,
-            heartbeatInterval: 50 // Fast heartbeat
-        });
+        try {
+            await app.register(autoShutdown, {
+                sleep: 10,
+                grace: 0.2, // 200ms
+                jitter: 0,
+                reportLoad: true,
+                heartbeatInterval: 50 // Fast heartbeat
+            });
 
-        await app.listen({ port: 0, host: "127.0.0.1" });
+            await app.listen({ port: 0, host: "127.0.0.1" });
 
-        // At 100ms, grace not over. Should contain NO heartbeats.
-        await sleep(100);
-        const countAt100 = msgs.length;
-        assert.strictEqual(countAt100, 0, "No heartbeats during grace period");
+            // At 100ms, grace not over. Should contain NO heartbeats.
+            await sleep(100);
+            const countAt100 = msgs.length;
+            assert.strictEqual(countAt100, 0, "No heartbeats during grace period");
 
-        // Wait for grace (200ms) + some intervals 
-        await sleep(300);
-        assert.ok(msgs.length > 0, "Heartbeats should start after grace period");
+            // Wait for grace (200ms) + some intervals 
+            await sleep(300);
+            assert.ok(msgs.length > 0, "Heartbeats should start after grace period");
 
-        await app.close();
-        process.send = originalSend;
-        process.exit = originalExit;
+            await app.close();
+        } finally {
+            process.send = originalSend;
+            process.exit = originalExit;
+        }
     });
 });

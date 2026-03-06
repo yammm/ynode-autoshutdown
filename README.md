@@ -87,9 +87,9 @@ The plugin accepts the following options:
 | Option       | Type                      | Default | Description                                                                       |
 | ------------ | ------------------------- | ------- | --------------------------------------------------------------------------------- |
 | `sleep`      | `number`                  | `1800`  | The inactivity period in **seconds** before shutting down.                        |
-| `grace`      | `number`                  | `5`     | A grace period in **seconds** after startup before the inactivity timer is armed. |
+| `grace`      | `number`                  | `30`    | A grace period in **seconds** after startup before the inactivity timer is armed. |
 | `ignoreUrls` | `Array<string \| RegExp>` | `[]`    | An array of URL paths or `RegExp` patterns to ignore for timer logic.             |
-| `jitter`     | `number`                  | `0`     | Adds a random delay (in **seconds**) to the sleep timer to avoid herd shutdowns.  |
+| `jitter`     | `number`                  | `5`     | Adds a random delay (in **seconds**) to the sleep timer to avoid herd shutdowns.  |
 | `force`             | `boolean`                 | `false` | If `true`, use `server.closeAllConnections()` after close. ⚠️ **Dangerous**.      |
 | `reportLoad`        | `boolean`                 | `false` | If `true`, sends IPC heartbeat messages with Event Loop Lag and memory usage.     |
 | `heartbeatInterval` | `number`                  | `2000`  | Interval in **milliseconds** for sending heartbeat messages (if `reportLoad` is on). |

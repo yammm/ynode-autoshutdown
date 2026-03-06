@@ -17,27 +17,30 @@ describe("Load Reporting Logic", () => {
             receivedMsg = msg;
         };
 
-        await app.register(autoShutdown, {
-            sleep: 10,
-            grace: 0,
-            reportLoad: true,
-            heartbeatInterval: 50, // 50ms
-        });
+        try {
+            await app.register(autoShutdown, {
+                sleep: 10,
+                grace: 0,
+                reportLoad: true,
+                heartbeatInterval: 50, // 50ms
+            });
 
-        await app.listen({ port: 0, host: "127.0.0.1" });
+            await app.listen({ port: 0, host: "127.0.0.1" });
 
-        await sleep(100);
+            await sleep(100);
 
-        assert.ok(receivedMsg, "Should have received a message");
-        assert.strictEqual(receivedMsg.cmd, "heartbeat");
-        assert.ok(typeof receivedMsg.lag === "number");
-        assert.ok(receivedMsg.memory);
+            assert.ok(receivedMsg, "Should have received a message");
+            assert.strictEqual(receivedMsg.cmd, "heartbeat");
+            assert.ok(typeof receivedMsg.lag === "number");
+            assert.ok(receivedMsg.memory);
 
-        await app.close();
-        if (originalSend) {
-            process.send = originalSend;
-        } else {
-            delete process.send;
+            await app.close();
+        } finally {
+            if (originalSend) {
+                process.send = originalSend;
+            } else {
+                delete process.send;
+            }
         }
     });
 });
