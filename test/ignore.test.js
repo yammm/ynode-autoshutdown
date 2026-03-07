@@ -1,7 +1,8 @@
-
-import { test, describe } from "node:test";
 import assert from "node:assert";
+import { describe,test } from "node:test";
+
 import Fastify from "fastify";
+
 import autoShutdown from "../src/plugin.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -11,11 +12,11 @@ describe("Ignore URLs Logic", () => {
         const app = Fastify();
         let closeCalled = false;
         app.addHook("onClose", async () => {
-            closeCalled = true; 
+            closeCalled = true;
         });
 
         const originalExit = process.exit;
-        process.exit = () => { };
+        process.exit = () => {};
 
         try {
             await app.register(autoShutdown, {

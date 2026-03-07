@@ -5,7 +5,7 @@ export function createLifecycle({ hookTimeout, log }) {
         try {
             const hookPromise = Promise.resolve(hook(...args));
             const timeoutPromise = new Promise((resolve) =>
-                setTimeout(() => resolve(timeoutSentinel), hookTimeout).unref()
+                setTimeout(() => resolve(timeoutSentinel), hookTimeout).unref(),
             );
 
             const result = await Promise.race([hookPromise, timeoutPromise]);

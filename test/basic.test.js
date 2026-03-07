@@ -1,7 +1,8 @@
-
-import { test, describe } from "node:test";
 import assert from "node:assert";
+import { describe,test } from "node:test";
+
 import Fastify from "fastify";
+
 import autoShutdown from "../src/plugin.js";
 
 // Helper to wait
@@ -58,7 +59,7 @@ describe("Basic Shutdown Logic", () => {
         });
 
         const originalExit = process.exit;
-        process.exit = () => { };
+        process.exit = () => {};
 
         try {
             await app.register(autoShutdown, {
@@ -76,7 +77,7 @@ describe("Basic Shutdown Logic", () => {
             const port = app.server.address().port;
 
             // Start a request immediately
-            fetch(`http://127.0.0.1:${port}/`).catch(() => { });
+            fetch(`http://127.0.0.1:${port}/`).catch(() => {});
 
             // By 100ms, request is still in flight (taking 150ms).
             // Timer shouldn't even be scheduled until response finishes at ~150ms.

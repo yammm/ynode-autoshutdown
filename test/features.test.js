@@ -1,6 +1,8 @@
-import { describe, test } from "node:test";
 import assert from "node:assert";
+import { describe, test } from "node:test";
+
 import Fastify from "fastify";
+
 import autoShutdown from "../src/plugin.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -35,7 +37,7 @@ describe("Feature Options", () => {
             assert.strictEqual(exitCalled, false);
         } finally {
             process.exit = originalExit;
-            await app.close().catch(() => { });
+            await app.close().catch(() => {});
         }
     });
 
@@ -63,7 +65,7 @@ describe("Feature Options", () => {
             assert.strictEqual(exitCode, 0);
         } finally {
             process.exit = originalExit;
-            await app.close().catch(() => { });
+            await app.close().catch(() => {});
         }
     });
 
@@ -95,7 +97,7 @@ describe("Feature Options", () => {
         assert.strictEqual(completeEvents[0].outcome, "closed");
         assert.ok(completeEvents[0].durationMs >= 0);
 
-        await app.close().catch(() => { });
+        await app.close().catch(() => {});
     });
 
     test("lifecycle complete event reports vetoed outcome", async () => {
@@ -129,7 +131,7 @@ describe("Feature Options", () => {
             "expected at least one vetoed completion event",
         );
 
-        await app.close().catch(() => { });
+        await app.close().catch(() => {});
     });
 
     test("function-based ignore matcher can ignore timer logic", async () => {
@@ -155,11 +157,7 @@ describe("Feature Options", () => {
             method: "GET",
             url: "/health?probe=1",
         });
-        assert.strictEqual(
-            app.autoshutdown.nextAt,
-            initialNextAt,
-            "ignored matcher request should not modify timer",
-        );
+        assert.strictEqual(app.autoshutdown.nextAt, initialNextAt, "ignored matcher request should not modify timer");
 
         await app.inject({
             method: "GET",

@@ -14,9 +14,7 @@ export function shouldIgnorePath(path, list) {
     if (!list?.length) {
         return false;
     }
-    return list.some((p) =>
-        typeof p === "string" ? p === path : p && typeof p.test === "function" && p.test(path),
-    );
+    return list.some((p) => (typeof p === "string" ? p === path : p && typeof p.test === "function" && p.test(path)));
 }
 
 export function shouldIgnoreRequest({ request, path, ignoreUrls, ignore, log }) {

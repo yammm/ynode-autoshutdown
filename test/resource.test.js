@@ -1,7 +1,8 @@
-
-import { test, describe } from "node:test";
 import assert from "node:assert";
+import { describe,test } from "node:test";
+
 import Fastify from "fastify";
+
 import autoShutdown from "../src/plugin.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -16,7 +17,7 @@ describe("Resource Based Shutdown", () => {
 
         // Mock process.exit
         const originalExit = process.exit;
-        process.exit = () => { };
+        process.exit = () => {};
 
         // Mock process.memoryUsage
         const originalMemoryUsage = process.memoryUsage;
@@ -26,7 +27,7 @@ describe("Resource Based Shutdown", () => {
             heapTotal: 0,
             heapUsed: 0,
             external: 0,
-            arrayBuffers: 0
+            arrayBuffers: 0,
         });
 
         try {

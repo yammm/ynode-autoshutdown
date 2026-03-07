@@ -1,6 +1,8 @@
-import { describe, test } from "node:test";
 import assert from "node:assert";
+import { describe, test } from "node:test";
+
 import Fastify from "fastify";
+
 import autoShutdown from "../src/plugin.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -10,7 +12,7 @@ describe("Shutdown Re-entry Protection", () => {
         const app = Fastify();
 
         const originalExit = process.exit;
-        process.exit = () => { };
+        process.exit = () => {};
 
         let closeCalls = 0;
 
@@ -45,7 +47,7 @@ describe("Shutdown Re-entry Protection", () => {
             assert.strictEqual(closeCalls, 1, "close should only run once while shutting down");
         } finally {
             process.exit = originalExit;
-            await app.close().catch(() => { });
+            await app.close().catch(() => {});
         }
     });
 });

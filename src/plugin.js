@@ -24,14 +24,15 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
 import fp from "fastify-plugin";
+
 import { createConfig, validateConfig } from "./config.js";
-import { createState } from "./state.js";
+import { createHeartbeatController } from "./heartbeat.js";
+import { registerHooks } from "./hooks.js";
 import { normalizePath, shouldIgnoreRequest as shouldIgnoreRequestMatcher } from "./ignore.js";
 import { createLifecycle } from "./lifecycle.js";
-import { createTimerController } from "./timer.js";
-import { createHeartbeatController } from "./heartbeat.js";
 import { createShutdownHandler } from "./shutdown.js";
-import { registerHooks } from "./hooks.js";
+import { createState } from "./state.js";
+import { createTimerController } from "./timer.js";
 
 /**
  *  Node.js Fastify plugin to Auto Shutdown after a period of inactivity
@@ -102,7 +103,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
         log,
     });
 
-    let shutdown = async () => { };
+    let shutdown = async () => {};
 
     const timer = createTimerController({
         state,

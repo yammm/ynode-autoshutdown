@@ -1,7 +1,8 @@
-
-import { test, describe } from "node:test";
 import assert from "node:assert";
+import { describe,test } from "node:test";
+
 import Fastify from "fastify";
+
 import autoShutdown from "../src/plugin.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

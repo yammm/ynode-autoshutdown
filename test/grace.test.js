@@ -1,7 +1,8 @@
-
-import { test, describe } from "node:test";
 import assert from "node:assert";
+import { describe,test } from "node:test";
+
 import Fastify from "fastify";
+
 import autoShutdown from "../src/plugin.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -15,7 +16,7 @@ describe("Grace Period Logic", () => {
         });
 
         const originalExit = process.exit;
-        process.exit = () => { };
+        process.exit = () => {};
 
         try {
             await app.register(autoShutdown, {
@@ -48,7 +49,7 @@ describe("Grace Period Logic", () => {
         };
 
         const originalExit = process.exit;
-        process.exit = () => { };
+        process.exit = () => {};
 
         try {
             await app.register(autoShutdown, {
@@ -56,7 +57,7 @@ describe("Grace Period Logic", () => {
                 grace: 0.2, // 200ms
                 jitter: 0,
                 reportLoad: true,
-                heartbeatInterval: 50 // Fast heartbeat
+                heartbeatInterval: 50, // Fast heartbeat
             });
 
             await app.listen({ port: 0, host: "127.0.0.1" });
@@ -66,7 +67,7 @@ describe("Grace Period Logic", () => {
             const countAt100 = msgs.length;
             assert.strictEqual(countAt100, 0, "No heartbeats during grace period");
 
-            // Wait for grace (200ms) + some intervals 
+            // Wait for grace (200ms) + some intervals
             await sleep(300);
             assert.ok(msgs.length > 0, "Heartbeats should start after grace period");
 
