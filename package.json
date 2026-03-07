@@ -39,7 +39,8 @@
         "globals": "^16.4.0",
         "jsdoc": "^4.0.5",
         "prettier": "^3.6.2",
-        "rimraf": "^6.0.1"
+        "rimraf": "^6.0.1",
+        "wtfnode": "^0.10.1"
     },
     "scripts": {
         "changelog": "auto-changelog -p",

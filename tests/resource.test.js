@@ -17,7 +17,7 @@ describe("Resource Based Shutdown", () => {
 
         // Mock process.exit
         const originalExit = process.exit;
-        process.exit = () => {};
+        process.exit = () => { };
 
         // Mock process.memoryUsage
         const originalMemoryUsage = process.memoryUsage;
@@ -54,6 +54,7 @@ describe("Resource Based Shutdown", () => {
 
             assert.strictEqual(closeCalled, true, "Should have closed due to memory limit");
         } finally {
+            await app.close().catch(() => { });
             process.exit = originalExit;
             process.memoryUsage = originalMemoryUsage;
         }

@@ -46,6 +46,7 @@ describe("Basic Shutdown Logic", () => {
             assert.strictEqual(closeCalled, true, "Fastify close hook should have been called");
             assert.strictEqual(exitCode, 0, "Process should have exited with code 0");
         } finally {
+            await app.close().catch(() => { });
             process.exit = originalExit;
         }
     });
@@ -59,7 +60,7 @@ describe("Basic Shutdown Logic", () => {
         });
 
         const originalExit = process.exit;
-        process.exit = () => {};
+        process.exit = () => { };
 
         try {
             await app.register(autoShutdown, {
@@ -77,7 +78,7 @@ describe("Basic Shutdown Logic", () => {
             const port = app.server.address().port;
 
             // Start a request immediately
-            fetch(`http://127.0.0.1:${port}/`).catch(() => {});
+            fetch(`http://127.0.0.1:${port}/`).catch(() => { });
 
             // By 100ms, request is still in flight (taking 150ms).
             // Timer shouldn't even be scheduled until response finishes at ~150ms.
@@ -90,6 +91,7 @@ describe("Basic Shutdown Logic", () => {
             await sleep(300); // 250 + 300 = 550ms, well past 350
             assert.strictEqual(closeCalled, true, "Should be closed now");
         } finally {
+            await app.close().catch(() => { });
             process.exit = originalExit;
         }
     });
