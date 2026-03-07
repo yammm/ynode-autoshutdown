@@ -1,0 +1,20 @@
+{
+    "source": {
+        "include": ["src"],
+        "exclude": ["node_modules", ".git"]
+    },
+    "opts": {
+        "destination": "docs",
+        "recurse": true,
+        "readme": "README.md",
+        "package": "package.json",
+        "encoding": "utf8",
+        "lenient": true
+    },
+    "plugins": ["plugins/markdown"],
+    "templates": {
+        "default": {
+            "includeDate": true
+        }
+    }
+}
