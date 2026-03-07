@@ -6,7 +6,7 @@ import Fastify from "fastify";
 import autoShutdown from "../src/plugin.js";
 
 describe("Duplicate Registration", () => {
-    test("second registration in same scope is ignored", async () => {
+    test("second registration throws rejection error", async () => {
         const app = Fastify();
 
         await app.register(autoShutdown, {
@@ -15,11 +15,14 @@ describe("Duplicate Registration", () => {
             jitter: 0,
         });
 
-        await app.register(autoShutdown, {
-            sleep: 1,
-            grace: 0,
-            jitter: 0,
-        });
+        await assert.rejects(
+            app.register(autoShutdown, {
+                sleep: 1,
+                grace: 0,
+                jitter: 0,
+            }),
+            /has already been registered/
+        );
 
         await app.ready();
 
