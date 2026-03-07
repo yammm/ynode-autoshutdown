@@ -15,14 +15,13 @@ describe("Duplicate Registration", () => {
             jitter: 0,
         });
 
-        await assert.rejects(
-            app.register(autoShutdown, {
+        await assert.rejects(async () => {
+            await app.register(autoShutdown, {
                 sleep: 1,
                 grace: 0,
                 jitter: 0,
-            }),
-            /has already been registered/
-        );
+            });
+        }, /has already been registered/);
 
         await app.ready();
 
