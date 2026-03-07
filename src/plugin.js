@@ -40,12 +40,12 @@ import { createTimerController } from "./timer.js";
  * @module @ynode/autoshutdown
  * @description A Fastify 5.x plugin to automatically shut down idle workers after a period of inactivity.
  *
- * @param {import("fastify").FastifyInstance} fastify The Fastify instance.
+ * @param {FastifyInstance} fastify The Fastify instance.
  * @param {object} [options] Plugin options.
  * @param {number} [options.sleep=1800] Inactivity time in seconds before shutdown.
  * @param {number} [options.grace=30] Grace period in seconds after startup before the timer is active.
- * @param {(string|RegExp)[]} [options.ignoreUrls=[]] URLs or route patterns to ignore for timer logic.
- * @param {(request: import("fastify").FastifyRequest, path: string) => boolean} [options.ignore] Optional request matcher to ignore timer logic.
+ * @param {Array<string|RegExp>} [options.ignoreUrls=[]] URLs or route patterns to ignore for timer logic.
+ * @param {function(FastifyRequest, string): boolean} [options.ignore] Optional request matcher to ignore timer logic.
  * @param {number} [options.jitter=5] Optional jitter (seconds) added to the delay to reduce herd exits.
  * @param {boolean} [options.force=false] If true, attempt `server.closeAllConnections()` after close. ⚠️ Dangerous.
  * @param {boolean} [options.exitProcess=true] If false, closes Fastify but does not call `process.exit`.
@@ -53,8 +53,8 @@ import { createTimerController } from "./timer.js";
  * @param {number} [options.heartbeatInterval=2000] Heartbeat interval in milliseconds (> 0).
  * @param {number} [options.hookTimeout=5000] Max milliseconds to wait for each shutdown hook (>= 0).
  * @param {number} [options.memoryLimit=0] RSS threshold in MB that triggers shutdown (>= 0, 0 disables).
- * @param {(event: object, instance: import("fastify").FastifyInstance) => (void|Promise<void>)} [options.onShutdownStart] Optional lifecycle hook called when shutdown starts.
- * @param {(event: object, instance: import("fastify").FastifyInstance) => (void|Promise<void>)} [options.onShutdownComplete] Optional lifecycle hook called when shutdown completes/cancels/fails.
+ * @param {function(object, FastifyInstance): (void|Promise<void>)} [options.onShutdownStart] Optional lifecycle hook called when shutdown starts.
+ * @param {function(object, FastifyInstance): (void|Promise<void>)} [options.onShutdownComplete] Optional lifecycle hook called when shutdown completes/cancels/fails.
  */
 async function autoShutdownPlugin(fastify, options = {}) {
     const log = fastify.log.child({ name: "@ynode/autoshutdown" });
@@ -103,7 +103,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
         log,
     });
 
-    let shutdown = async () => {};
+    let shutdown = async () => { };
 
     const timer = createTimerController({
         state,
