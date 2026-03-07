@@ -59,8 +59,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
     const log = fastify.log.child({ name: "@ynode/autoshutdown" });
 
     if (typeof fastify.hasDecorator === "function" && fastify.hasDecorator("autoshutdown")) {
-        log.warn("@ynode/autoshutdown already registered in this scope; skipping.");
-        return;
+        throw new Error("@ynode/autoshutdown has already been registered");
     }
 
     const cfg = createConfig(options);
@@ -103,7 +102,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
         log,
     });
 
-    let shutdown = async () => {};
+    let shutdown = async () => { };
 
     const timer = createTimerController({
         state,
