@@ -1,6 +1,6 @@
 {
     "name": "@ynode/autoshutdown",
-    "version": "1.4.2",
+    "version": "1.4.3",
     "description": "Fastify 5 plugin that shuts down idle workers after a period of inactivity",
     "main": "src/plugin.js",
     "type": "module",
