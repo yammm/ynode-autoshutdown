@@ -16,11 +16,16 @@
     "homepage": "https://github.com/yammm/ynode-autoshutdown#readme",
     "keywords": [
         "fastify",
+        "fastify-plugin",
         "systemd",
         "plugin",
         "autoscaling",
         "shutdown",
-        "idle"
+        "idle",
+        "worker",
+        "graceful",
+        "scale-down",
+        "inactivity"
     ],
     "engines": {
         "node": ">=20"
