@@ -25,6 +25,13 @@ export function registerHooks({
     startHeartbeat,
     stopHeartbeat,
 }) {
+    function clearGraceTimer() {
+        if (state.graceTimer) {
+            clearTimeout(state.graceTimer);
+            state.graceTimer = null;
+        }
+    }
+
     fastify.addHook("onRequest", async (request, reply) => {
         const path = normalizePath(request.routeOptions?.url || request.url);
         request[state.ignoredSymbol] = shouldIgnoreRequest(request, path);
@@ -59,23 +66,32 @@ export function registerHooks({
             log.debug(`Worker ${process.pid} in grace period (${grace}s)`);
         }
 
-        setTimeout(() => {
+        clearGraceTimer();
+        state.graceTimer = setTimeout(() => {
+            state.graceTimer = null;
+            if (state.isShuttingDown) {
+                return;
+            }
             if (grace > 0) {
                 log.debug(`Grace ended for worker ${process.pid}; arming inactivity timer`);
             }
             schedule();
             startHeartbeat();
-        }, grace * 1000).unref();
+        }, grace * 1000);
+        state.graceTimer.unref();
     });
 
     fastify.addHook("preClose", async () => {
         stopHeartbeat();
         state.isShuttingDown = true;
+        clearGraceTimer();
         cancel();
     });
 
     fastify.addHook("onClose", async () => {
         state.isShuttingDown = true;
+        clearGraceTimer();
+        stopHeartbeat();
         cancel();
     });
 }

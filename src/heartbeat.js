@@ -25,13 +25,13 @@ export function createHeartbeatController({
     }
 
     function startHeartbeat() {
-        if ((!reportLoad && memoryLimit === 0) || state.intervalTimer) {
+        if (state.isShuttingDown || (!reportLoad && memoryLimit === 0) || state.intervalTimer) {
             return;
         }
 
         let lastCheck = Date.now();
         state.intervalTimer = setInterval(() => {
-            if (process.connected === false) {
+            if (state.isShuttingDown || process.connected === false) {
                 stopHeartbeat();
                 return;
             }

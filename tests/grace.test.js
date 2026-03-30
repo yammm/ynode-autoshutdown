@@ -3,7 +3,10 @@ import { describe, test } from "node:test";
 
 import Fastify from "fastify";
 
+import { createHeartbeatController } from "../src/heartbeat.js";
+import { registerHooks } from "../src/hooks.js";
 import autoShutdown from "../src/plugin.js";
+import { createState } from "../src/state.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -75,6 +78,62 @@ describe("Grace Period Logic", () => {
         } finally {
             process.send = originalSend;
             process.exit = originalExit;
+        }
+    });
+
+    test("should not restart heartbeat after shutdown during grace period", async () => {
+        const hooks = new Map();
+        const fastify = {
+            addHook(name, handler) {
+                hooks.set(name, handler);
+            },
+        };
+        const state = createState();
+
+        const msgs = [];
+        const originalSend = process.send;
+        process.send = (msg) => {
+            msgs.push(msg);
+        };
+
+        const heartbeat = createHeartbeatController({
+            state,
+            reportLoad: true,
+            memoryLimit: 0,
+            heartbeatInterval: 25,
+            log: { warn() {} },
+            shutdown: async () => {},
+        });
+
+        registerHooks({
+            fastify,
+            state,
+            grace: 0.05,
+            log: { debug() {}, warn() {} },
+            normalizePath: (path) => path,
+            shouldIgnoreRequest: () => false,
+            schedule: () => {},
+            cancel: () => {},
+            startHeartbeat: heartbeat.startHeartbeat,
+            stopHeartbeat: heartbeat.stopHeartbeat,
+        });
+
+        try {
+            await hooks.get("onListen")();
+            await hooks.get("preClose")();
+            await hooks.get("onClose")();
+
+            await sleep(120);
+            assert.strictEqual(msgs.length, 0, "Heartbeats should stay stopped after shutdown");
+            assert.strictEqual(
+                state.intervalTimer,
+                null,
+                "No heartbeat interval should be left running",
+            );
+            assert.strictEqual(state.graceTimer, null, "Grace timer should be cleared on shutdown");
+        } finally {
+            heartbeat.stopHeartbeat();
+            process.send = originalSend;
         }
     });
 });
