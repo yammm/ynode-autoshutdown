@@ -1,3 +1,10 @@
+/**
+ * Creates hook execution utilities with timeout protection for shutdown lifecycle hooks.
+ * @param {object} deps - Injected dependencies.
+ * @param {number} deps.hookTimeout - Max milliseconds to wait for each hook before continuing.
+ * @param {object} deps.log - Child logger instance.
+ * @returns {{ runHookWithTimeout: function, runLifecycleHooks: function }}
+ */
 export function createLifecycle({ hookTimeout, log }) {
     const timeoutSentinel = Symbol("hook-timeout");
 

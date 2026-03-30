@@ -14,12 +14,32 @@ const DEFAULTS = {
     onShutdownComplete: null,
 };
 
+/**
+ * Merges user-supplied options with defaults to produce a complete configuration.
+ * @param {object} [options] - Partial plugin options.
+ * @returns {object} Full configuration with all defaults applied.
+ */
 export function createConfig(options = {}) {
     return { ...DEFAULTS, ...options };
 }
 
+/**
+ * Validates a merged configuration object, throwing on invalid values.
+ * @param {object} cfg - Full configuration to validate.
+ * @throws {Error} If any option is out of range or the wrong type.
+ */
 export function validateConfig(cfg) {
-    const { sleep, grace, jitter, ignoreUrls, ignore, exitProcess, heartbeatInterval, hookTimeout, memoryLimit } = cfg;
+    const {
+        sleep,
+        grace,
+        jitter,
+        ignoreUrls,
+        ignore,
+        exitProcess,
+        heartbeatInterval,
+        hookTimeout,
+        memoryLimit,
+    } = cfg;
 
     if (!Number.isFinite(sleep) || sleep <= 0) {
         throw new Error("@ynode/autoshutdown: `sleep` must be > 0");

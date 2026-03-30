@@ -43,11 +43,22 @@ describe("Decorated Control Surface", () => {
         });
 
         await sleep(10);
-        assert.strictEqual(app.autoshutdown.inFlight, 1, "inFlight should increment while request runs");
+        assert.strictEqual(
+            app.autoshutdown.inFlight,
+            1,
+            "inFlight should increment while request runs",
+        );
 
         await reqPromise;
-        assert.strictEqual(app.autoshutdown.inFlight, 0, "inFlight should return to zero after response");
-        assert.ok(typeof app.autoshutdown.nextAt === "number", "timer should be re-armed after response");
+        assert.strictEqual(
+            app.autoshutdown.inFlight,
+            0,
+            "inFlight should return to zero after response",
+        );
+        assert.ok(
+            typeof app.autoshutdown.nextAt === "number",
+            "timer should be re-armed after response",
+        );
 
         await app.close();
     });

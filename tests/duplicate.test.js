@@ -24,7 +24,11 @@ describe("Duplicate Registration", () => {
             await app.ready();
         }, /has already been registered/);
 
-        assert.strictEqual(app.autoshutdown.delay, 33000, "first registration should remain active");
+        assert.strictEqual(
+            app.autoshutdown.delay,
+            33000,
+            "first registration should remain active",
+        );
         assert.strictEqual(typeof app.onAutoShutdown, "function");
 
         await app.close();

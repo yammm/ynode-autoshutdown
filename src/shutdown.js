@@ -1,3 +1,23 @@
+/**
+ * Creates the shutdown sequence handler that orchestrates graceful close,
+ * lifecycle hook execution, veto logic, and optional process exit.
+ * @param {object} deps - Injected dependencies.
+ * @param {object} deps.state - Shared mutable state.
+ * @param {FastifyInstance} deps.fastify - Fastify instance to close.
+ * @param {object} deps.log - Child logger instance.
+ * @param {boolean} deps.force - Whether to force-close all connections after fastify.close().
+ * @param {boolean} deps.exitProcess - Whether to call process.exit() after shutdown.
+ * @param {function[]} deps.shutdownHooks - Veto hooks; returning false cancels shutdown.
+ * @param {function[]} deps.shutdownStartHooks - Lifecycle hooks fired when shutdown begins.
+ * @param {function[]} deps.shutdownCompleteHooks - Lifecycle hooks fired when shutdown ends.
+ * @param {function} deps.runHookWithTimeout - Executes a hook with timeout protection.
+ * @param {function} deps.runLifecycleHooks - Executes an array of lifecycle hooks sequentially.
+ * @param {function} deps.schedule - Re-arms the idle timer (used after veto).
+ * @param {function} deps.cancel - Cancels the idle timer.
+ * @param {function} deps.startHeartbeat - Restarts heartbeat (used after veto).
+ * @param {function} deps.stopHeartbeat - Stops the heartbeat interval.
+ * @returns {function(string=): Promise<void>} The shutdown function, accepting an optional trigger string.
+ */
 export function createShutdownHandler({
     state,
     fastify,

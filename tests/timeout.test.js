@@ -37,7 +37,11 @@ describe("Shutdown Hook Safety", () => {
             // Wait for sleep (100ms) + timeout (200ms) + buffer
             await sleep(500);
 
-            assert.strictEqual(closeCalled, true, "Shutdown should have proceeded despite hanging hook");
+            assert.strictEqual(
+                closeCalled,
+                true,
+                "Shutdown should have proceeded despite hanging hook",
+            );
         } finally {
             process.exit = originalExit;
         }

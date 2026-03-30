@@ -103,7 +103,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
         log,
     });
 
-    let shutdown = async () => { };
+    let shutdown = async () => {};
 
     const timer = createTimerController({
         state,

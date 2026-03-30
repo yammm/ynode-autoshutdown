@@ -49,7 +49,10 @@ describe("Ignore URLs Edge Cases", () => {
             method: "GET",
             url: "/active?probe=1",
         });
-        assert.ok(app.autoshutdown.nextAt > initialNextAt, "non-ignored request should re-arm timer");
+        assert.ok(
+            app.autoshutdown.nextAt > initialNextAt,
+            "non-ignored request should re-arm timer",
+        );
 
         await app.close();
     });

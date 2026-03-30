@@ -16,7 +16,7 @@ describe("Ignore URLs Logic", () => {
         });
 
         const originalExit = process.exit;
-        process.exit = () => { };
+        process.exit = () => {};
 
         try {
             await app.register(autoShutdown, {
@@ -48,7 +48,7 @@ describe("Ignore URLs Logic", () => {
             await sleep(250);
             assert.strictEqual(closeCalled, true, "Should close because requests were ignored");
         } finally {
-            await app.close().catch(() => { });
+            await app.close().catch(() => {});
             process.exit = originalExit;
         }
     });

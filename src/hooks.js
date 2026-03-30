@@ -1,3 +1,18 @@
+/**
+ * Registers Fastify lifecycle hooks for request tracking, idle timer management,
+ * grace period handling, and shutdown coordination.
+ * @param {object} deps - Injected dependencies.
+ * @param {FastifyInstance} deps.fastify - Fastify instance.
+ * @param {object} deps.state - Shared mutable state.
+ * @param {number} deps.grace - Grace period in seconds after startup before the timer arms.
+ * @param {object} deps.log - Child logger instance.
+ * @param {function(string): string} deps.normalizePath - Strips query strings from request paths.
+ * @param {function(object, string): boolean} deps.shouldIgnoreRequest - Predicate for ignored requests.
+ * @param {function(): void} deps.schedule - Arms the idle shutdown timer.
+ * @param {function(): void} deps.cancel - Cancels the idle shutdown timer.
+ * @param {function(): void} deps.startHeartbeat - Starts the heartbeat interval.
+ * @param {function(): void} deps.stopHeartbeat - Stops the heartbeat interval.
+ */
 export function registerHooks({
     fastify,
     state,
@@ -17,7 +32,7 @@ export function registerHooks({
             return;
         }
 
-        state.inFlight += 1;
+        ++state.inFlight;
         cancel();
     });
 
@@ -25,7 +40,15 @@ export function registerHooks({
         if (request[state.ignoredSymbol]) {
             return;
         }
-        state.inFlight = Math.max(0, state.inFlight - 1);
+        if (state.inFlight <= 0) {
+            log.warn(
+                { inFlight: state.inFlight },
+                "inFlight underflow detected; possible hook pairing mismatch",
+            );
+            state.inFlight = 0;
+        } else {
+            --state.inFlight;
+        }
         if (state.inFlight === 0) {
             schedule();
         }
@@ -41,9 +64,6 @@ export function registerHooks({
                 log.debug(`Grace ended for worker ${process.pid}; arming inactivity timer`);
             }
             schedule();
-        }, grace * 1000).unref();
-
-        setTimeout(() => {
             startHeartbeat();
         }, grace * 1000).unref();
     });
