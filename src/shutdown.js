@@ -33,7 +33,10 @@ export function createShutdownHandler({
         };
         await runLifecycleHooks(shutdownStartHooks, startEvent, "onAutoShutdownStart", fastify);
 
-        log.warn({ pid: process.pid, nextAt: state.nextAt, trigger }, "Auto-shutdown: shutdown started");
+        log.warn(
+            { pid: process.pid, nextAt: state.nextAt, trigger },
+            "Auto-shutdown: shutdown started",
+        );
 
         for (const hook of shutdownHooks) {
             const result = await runHookWithTimeout(hook, [fastify], "onAutoShutdown");
@@ -86,6 +89,9 @@ export function createShutdownHandler({
             );
 
             if (exitProcess) {
+                if (typeof process.disconnect === "function" && process.connected) {
+                    process.disconnect();
+                }
                 process.exit(0);
             }
         } catch (err) {
@@ -105,6 +111,9 @@ export function createShutdownHandler({
             );
 
             if (exitProcess) {
+                if (typeof process.disconnect === "function" && process.connected) {
+                    process.disconnect();
+                }
                 process.exit(1);
             }
         }

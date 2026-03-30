@@ -69,6 +69,100 @@ describe("Feature Options", () => {
         }
     });
 
+    test("cluster worker disconnects IPC before process.exit(0)", async () => {
+        const app = Fastify();
+
+        const originalExit = process.exit;
+        const originalDisconnect = process.disconnect;
+        const originalConnected = Object.getOwnPropertyDescriptor(process, "connected");
+
+        let exitCode = null;
+        let disconnectCalled = false;
+        const callOrder = [];
+
+        process.exit = (code) => {
+            exitCode = code;
+            callOrder.push("exit");
+        };
+        process.disconnect = () => {
+            disconnectCalled = true;
+            callOrder.push("disconnect");
+        };
+        Object.defineProperty(process, "connected", { value: true, configurable: true });
+
+        try {
+            await app.register(autoShutdown, {
+                sleep: 0.05,
+                grace: 0,
+                jitter: 0,
+                exitProcess: true,
+            });
+
+            await app.ready();
+            app.autoshutdown.reset();
+            await sleep(160);
+
+            assert.strictEqual(
+                disconnectCalled,
+                true,
+                "process.disconnect() must be called in cluster context",
+            );
+            assert.strictEqual(exitCode, 0);
+            assert.deepStrictEqual(
+                callOrder,
+                ["disconnect", "exit"],
+                "disconnect must precede exit",
+            );
+        } finally {
+            process.exit = originalExit;
+            if (originalDisconnect === undefined) {
+                delete process.disconnect;
+            } else {
+                process.disconnect = originalDisconnect;
+            }
+            if (originalConnected) {
+                Object.defineProperty(process, "connected", originalConnected);
+            } else {
+                delete process.connected;
+            }
+            await app.close().catch(() => {});
+        }
+    });
+
+    test("skips disconnect when not in a cluster worker", async () => {
+        const app = Fastify();
+
+        const originalExit = process.exit;
+        const originalDisconnect = process.disconnect;
+
+        let exitCode = null;
+        process.exit = (code) => {
+            exitCode = code;
+        };
+        delete process.disconnect;
+
+        try {
+            await app.register(autoShutdown, {
+                sleep: 0.05,
+                grace: 0,
+                jitter: 0,
+                exitProcess: true,
+            });
+
+            await app.ready();
+            app.autoshutdown.reset();
+            await sleep(160);
+
+            assert.strictEqual(exitCode, 0, "should still exit cleanly without disconnect");
+        } finally {
+            process.exit = originalExit;
+            if (originalDisconnect !== undefined) {
+                process.disconnect = originalDisconnect;
+            }
+            await app.close().catch(() => {});
+        }
+    });
+
     test("lifecycle hooks receive start and complete events", async () => {
         const app = Fastify();
         const startEvents = [];
@@ -157,7 +251,11 @@ describe("Feature Options", () => {
             method: "GET",
             url: "/health?probe=1",
         });
-        assert.strictEqual(app.autoshutdown.nextAt, initialNextAt, "ignored matcher request should not modify timer");
+        assert.strictEqual(
+            app.autoshutdown.nextAt,
+            initialNextAt,
+            "ignored matcher request should not modify timer",
+        );
 
         await app.inject({
             method: "GET",
