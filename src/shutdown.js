@@ -62,8 +62,13 @@ export function createShutdownHandler({
             const result = await runHookWithTimeout(hook, [fastify], "onAutoShutdown");
             if (result === false) {
                 log.info("Shutdown cancelled by an onAutoShutdown hook; rescheduling");
-                state.isShuttingDown = false;
-                startHeartbeat();
+                // Run complete hooks BEFORE re-arming the heartbeat. The
+                // heartbeat can trigger a fresh shutdown (memory_limit) the
+                // moment it ticks, and we must guarantee that the "vetoed"
+                // complete event for this shutdown fires before any new
+                // shutdownStart event is emitted. Keeping isShuttingDown
+                // true across the await blocks both heartbeat-driven and
+                // signal-driven re-entry (see shutdown.js:38, heartbeat.js:34).
                 await runLifecycleHooks(
                     shutdownCompleteHooks,
                     {
@@ -75,7 +80,10 @@ export function createShutdownHandler({
                     "onAutoShutdownComplete",
                     fastify,
                 );
-                return schedule();
+                state.isShuttingDown = false;
+                startHeartbeat();
+                schedule();
+                return;
             }
         }
 

@@ -228,6 +228,60 @@ describe("Feature Options", () => {
         await app.close().catch(() => {});
     });
 
+    test("vetoed complete event fires before any heartbeat-driven re-entry", async () => {
+        // Regression test: if startHeartbeat is restarted BEFORE the vetoed
+        // complete hook finishes awaiting, the next heartbeat tick can call
+        // shutdown() while isShuttingDown is already false — emitting a new
+        // shutdownStart event before the vetoed shutdownComplete ever fires.
+        const app = Fastify();
+        const ordered = [];
+        let vetoOnce = true;
+
+        await app.register(autoShutdown, {
+            sleep: 60, // long; idle timer won't fire during this test
+            grace: 0,
+            jitter: 0,
+            exitProcess: false,
+            memoryLimit: 1, // any positive value is exceeded on first heartbeat
+            heartbeatInterval: 30, // fast enough to tick during the complete-hook await
+            onShutdownStart: async (event) => {
+                ordered.push({ type: "start", trigger: event.trigger });
+            },
+            onShutdownComplete: async (event) => {
+                // Slow enough that the heartbeat would fire again if it were running
+                await sleep(150);
+                ordered.push({ type: "complete", outcome: event.outcome });
+            },
+        });
+
+        app.onAutoShutdown(async () => {
+            if (vetoOnce) {
+                vetoOnce = false;
+                return false;
+            }
+        });
+
+        await app.listen({ port: 0, host: "127.0.0.1" });
+        await sleep(500);
+
+        const firstStart = ordered.findIndex((e) => e.type === "start");
+        const vetoedComplete = ordered.findIndex(
+            (e) => e.type === "complete" && e.outcome === "vetoed",
+        );
+        assert.ok(firstStart >= 0, "expected at least one shutdownStart event");
+        assert.ok(vetoedComplete >= 0, "expected a vetoed complete event");
+
+        const between = ordered.slice(firstStart + 1, vetoedComplete);
+        const interleavedStarts = between.filter((e) => e.type === "start");
+        assert.strictEqual(
+            interleavedStarts.length,
+            0,
+            `vetoed complete must fire before any new shutdownStart; got: ${JSON.stringify(ordered)}`,
+        );
+
+        await app.close().catch(() => {});
+    });
+
     test("function-based ignore matcher can ignore timer logic", async () => {
         const app = Fastify();
 

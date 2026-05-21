@@ -55,6 +55,7 @@ export function createHeartbeatController({
                 process.send({ cmd: "heartbeat", lag, memory: mem });
             }
         }, heartbeatInterval);
+        state.intervalTimer.unref();
     }
 
     return {
