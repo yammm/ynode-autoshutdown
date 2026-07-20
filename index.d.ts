@@ -34,7 +34,7 @@ export interface AutoshutdownOptions {
     reportLoad?: boolean;
     /** Heartbeat interval in milliseconds. @default 2000 */
     heartbeatInterval?: number;
-    /** Max milliseconds to wait for each shutdown hook to complete. @default 5000 */
+    /** Max milliseconds per shutdown hook; with 0, hooks must settle before the next timer turn. @default 5000 */
     hookTimeout?: number;
     /** Max milliseconds for each graceful or forced Fastify close phase. @default 10000 */
     closeTimeout?: number;
@@ -49,7 +49,7 @@ export interface AutoshutdownOptions {
 }
 
 export interface AutoshutdownControl {
-    /** Arms or re-arms the idle shutdown timer. */
+    /** Arms or re-arms the idle timer; ignored during active startup grace or after closing starts. */
     reset(): void;
     /** Cancels the idle shutdown timer. */
     cancel(): void;

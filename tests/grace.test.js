@@ -81,6 +81,35 @@ describe("Grace Period Logic", () => {
         }
     });
 
+    test("request completion does not arm the idle timer during grace", async () => {
+        const app = Fastify();
+        app.get("/work", async () => ({ ok: true }));
+
+        await app.register(autoShutdown, {
+            sleep: 0.05,
+            grace: 0.3,
+            jitter: 0,
+            exitProcess: false,
+        });
+        await app.ready();
+        app.autoshutdown.reset();
+        assert.strictEqual(typeof app.autoshutdown.nextAt, "number");
+        await app.listen({ port: 0, host: "127.0.0.1" });
+
+        try {
+            assert.strictEqual(app.autoshutdown.nextAt, null);
+            app.autoshutdown.reset();
+            assert.strictEqual(app.autoshutdown.nextAt, null);
+            await app.inject({ method: "GET", url: "/work" });
+            assert.strictEqual(app.autoshutdown.nextAt, null);
+
+            await sleep(120);
+            assert.strictEqual(app.server.listening, true, "server must remain open during grace");
+        } finally {
+            await app.close();
+        }
+    });
+
     test("should not restart heartbeat after shutdown during grace period", async () => {
         const hooks = new Map();
         const fastify = {

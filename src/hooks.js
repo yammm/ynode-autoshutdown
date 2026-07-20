@@ -52,8 +52,8 @@ export function registerHooks({
         }
     }
 
-    fastify.addHook("onRequest", async (request, reply) => {
-        const path = normalizePath(request.routeOptions?.url || request.url);
+    fastify.addHook("onRequest", async (request) => {
+        const path = normalizePath(request.routeOptions?.url ?? request.url);
         request[state.ignoredSymbol] = shouldIgnoreRequest(request, path);
         if (request[state.ignoredSymbol]) {
             return;
@@ -65,7 +65,7 @@ export function registerHooks({
         cancel();
     });
 
-    fastify.addHook("onResponse", async (request, reply) => {
+    fastify.addHook("onResponse", async (request) => {
         settleRequest(request, "response");
     });
 
@@ -83,6 +83,7 @@ export function registerHooks({
         }
 
         clearGraceTimer();
+        cancel();
         state.graceTimer = setTimeout(() => {
             state.graceTimer = null;
             if (state.isShuttingDown) {
@@ -98,6 +99,7 @@ export function registerHooks({
     });
 
     fastify.addHook("preClose", async () => {
+        state.closeRequested = true;
         stopHeartbeat();
         state.isShuttingDown = true;
         clearGraceTimer();
@@ -105,6 +107,7 @@ export function registerHooks({
     });
 
     fastify.addHook("onClose", async () => {
+        state.closeRequested = true;
         state.isShuttingDown = true;
         clearGraceTimer();
         stopHeartbeat();

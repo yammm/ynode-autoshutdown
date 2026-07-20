@@ -3,7 +3,9 @@ import { describe, test } from "node:test";
 
 import Fastify from "fastify";
 
+import { createHeartbeatController } from "../src/heartbeat.js";
 import autoShutdown from "../src/plugin.js";
+import { createState } from "../src/state.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -41,6 +43,39 @@ describe("Load Reporting Logic", () => {
                 process.send = originalSend;
             } else {
                 delete process.send;
+            }
+        }
+    });
+
+    test("continues memory enforcement after parent IPC disconnects", async () => {
+        const state = createState();
+        const originalConnected = Object.getOwnPropertyDescriptor(process, "connected");
+        Object.defineProperty(process, "connected", { value: false, configurable: true });
+        let shutdowns = 0;
+        const heartbeat = createHeartbeatController({
+            state,
+            reportLoad: false,
+            memoryLimit: Number.MIN_VALUE,
+            heartbeatInterval: 10,
+            log: { debug() {}, warn() {} },
+            shutdown: async () => {
+                ++shutdowns;
+                state.isShuttingDown = true;
+            },
+        });
+
+        try {
+            heartbeat.startHeartbeat();
+            await sleep(35);
+
+            assert.strictEqual(shutdowns, 1);
+            assert.strictEqual(state.intervalTimer, null);
+        } finally {
+            heartbeat.stopHeartbeat();
+            if (originalConnected) {
+                Object.defineProperty(process, "connected", originalConnected);
+            } else {
+                delete process.connected;
             }
         }
     });

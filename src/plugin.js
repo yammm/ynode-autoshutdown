@@ -51,7 +51,7 @@ import { createTimerController } from "./timer.js";
  * @param {boolean} [options.exitProcess=true] If false, closes Fastify but does not call `process.exit`.
  * @param {boolean} [options.reportLoad=false] If true, send IPC heartbeat messages.
  * @param {number} [options.heartbeatInterval=2000] Heartbeat interval in milliseconds (> 0).
- * @param {number} [options.hookTimeout=5000] Max milliseconds to wait for each shutdown hook (>= 0).
+ * @param {number} [options.hookTimeout=5000] Max milliseconds per shutdown hook; with 0, hooks must settle before the next timer turn.
  * @param {number} [options.closeTimeout=10000] Max milliseconds for graceful and forced close phases (> 0).
  * @param {number} [options.memoryLimit=0] RSS threshold in MB that triggers shutdown (>= 0, 0 disables).
  * @param {function(object, FastifyInstance): (void|Promise<void>)} [options.onShutdownStart] Optional lifecycle hook called when shutdown starts.
@@ -74,6 +74,13 @@ async function autoShutdownPlugin(fastify, options = {}) {
     const shutdownStartHooks = [];
     const shutdownCompleteHooks = [];
 
+    function addShutdownHook(list, name, fn) {
+        if (typeof fn !== "function") {
+            throw new TypeError(`@ynode/autoshutdown: \`${name}\` hook must be a function`);
+        }
+        list.push(fn);
+    }
+
     if (typeof cfg.onShutdownStart === "function") {
         shutdownStartHooks.push(cfg.onShutdownStart);
     }
@@ -81,22 +88,19 @@ async function autoShutdownPlugin(fastify, options = {}) {
         shutdownCompleteHooks.push(cfg.onShutdownComplete);
     }
 
+    /** Registers a veto-capable hook that runs before an idle shutdown. */
     fastify.decorate("onAutoShutdown", (fn) => {
-        if (typeof fn === "function") {
-            shutdownHooks.push(fn);
-        }
+        addShutdownHook(shutdownHooks, "onAutoShutdown", fn);
     });
 
+    /** Registers an observer that runs when a shutdown attempt starts. */
     fastify.decorate("onAutoShutdownStart", (fn) => {
-        if (typeof fn === "function") {
-            shutdownStartHooks.push(fn);
-        }
+        addShutdownHook(shutdownStartHooks, "onAutoShutdownStart", fn);
     });
 
+    /** Registers an observer that runs when a shutdown attempt settles. */
     fastify.decorate("onAutoShutdownComplete", (fn) => {
-        if (typeof fn === "function") {
-            shutdownCompleteHooks.push(fn);
-        }
+        addShutdownHook(shutdownCompleteHooks, "onAutoShutdownComplete", fn);
     });
 
     const lifecycle = createLifecycle({
@@ -141,8 +145,14 @@ async function autoShutdownPlugin(fastify, options = {}) {
     });
 
     fastify.decorate("autoshutdown", {
-        reset: timer.schedule,
-        cancel: timer.cancel,
+        /** Arms or re-arms the idle timer when lifecycle state permits it. */
+        reset() {
+            timer.schedule();
+        },
+        /** Cancels the current idle timer. */
+        cancel() {
+            timer.cancel();
+        },
         get inFlight() {
             return state.inFlight;
         },

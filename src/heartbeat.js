@@ -31,7 +31,7 @@ export function createHeartbeatController({
 
         let lastCheck = Date.now();
         state.intervalTimer = setInterval(() => {
-            if (state.isShuttingDown || process.connected === false) {
+            if (state.isShuttingDown || (process.connected === false && memoryLimit === 0)) {
                 stopHeartbeat();
                 return;
             }
@@ -41,9 +41,14 @@ export function createHeartbeatController({
             const lag = Math.max(0, now - lastCheck - heartbeatInterval);
             lastCheck = now;
 
-            const mem = process.memoryUsage();
+            const mem = reportLoad ? process.memoryUsage() : null;
             if (memoryLimit > 0) {
-                const rssMb = mem.rss / 1024 / 1024;
+                const rss =
+                    mem?.rss ??
+                    (typeof process.memoryUsage.rss === "function"
+                        ? process.memoryUsage.rss()
+                        : process.memoryUsage().rss);
+                const rssMb = rss / 1024 / 1024;
                 if (rssMb > memoryLimit) {
                     log.warn({ rssMb, memoryLimit }, "Memory limit exceeded; shutting down");
                     void shutdown("memory_limit");

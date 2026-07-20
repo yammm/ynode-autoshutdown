@@ -33,7 +33,7 @@ describe("Shutdown Re-entry Protection", () => {
 
             app.onAutoShutdown(async () => {
                 // Attempt to re-arm while shutdown is already in progress.
-                for (let i = 0; i < 5; i++) {
+                for (let i = 0; i < 5; ++i) {
                     app.autoshutdown.reset();
                     await sleep(10);
                 }

@@ -82,11 +82,11 @@ The plugin accepts the following options:
 | `exitProcess` | `boolean` | `true` | If `false`, plugin closes Fastify but does not call `process.exit(...)`. |
 | `reportLoad` | `boolean` | `false` | If `true`, sends IPC heartbeat messages with Event Loop Lag and memory usage. |
 | `heartbeatInterval` | `number` | `2000` | Interval in **milliseconds** for heartbeats and memory checks (**must be > 0**). |
-| `hookTimeout` | `number` | `5000` | Maximum time in **milliseconds** to wait for an `onAutoShutdown` hook to resolve. |
+| `hookTimeout` | `number` | `5000` | Maximum time in **milliseconds** to wait for a shutdown hook. With `0`, hooks must settle before the next timer turn. |
 | `closeTimeout` | `number` | `10000` | Maximum time in **milliseconds** for each graceful or forced Fastify close phase. |
 | `memoryLimit` | `number` | `0` | Memory limit in **Megabytes** (RSS). If exceeded, the server shuts down. `0` = disabled. |
-| `onShutdownStart` | `(event, app) => void` | `null` | Optional lifecycle observer called when shutdown starts. |
-| `onShutdownComplete` | `(event, app) => void` | `null` | Optional lifecycle observer called with outcome (`closed`, `vetoed`, `error`). |
+| `onShutdownStart` | `(event, app) => void \| Promise<void>` | `null` | Optional lifecycle observer called when shutdown starts. |
+| `onShutdownComplete` | `(event, app) => void \| Promise<void>` | `null` | Optional lifecycle observer called with outcome (`closed`, `vetoed`, `error`). |
 
 ---
 
@@ -120,8 +120,8 @@ await app.register(autoShutdown, {
 | --- | --- | --- | --- |
 | Startup grace period | `0` | Timer waits until grace ends | No shutdown during grace |
 | Non-ignored request starts | `+1` | Timer is cancelled | Shutdown paused while request runs |
-| Last non-ignored response completes | back to `0` | Timer is re-armed | Shutdown may occur after `sleep` (+ jitter) |
-| Non-ignored request aborts or times out | back toward `0` once | Timer is re-armed at `0` | Abandoned requests cannot pin a worker active |
+| Last non-ignored response completes | back to `0` | Timer is re-armed after startup grace | Shutdown may occur after `sleep` (+ jitter) |
+| Non-ignored request aborts or times out | back toward `0` once | Timer is re-armed at `0` after startup grace | Abandoned requests cannot pin a worker active |
 | Ignored request (string/RegExp match) | unchanged | Timer is unchanged | Request does not delay shutdown |
 | Hook returns `false` | unchanged | Timer is re-armed | Shutdown is vetoed for that cycle |
 | Hook throws or times out | unchanged | Continue current shutdown | Shutdown proceeds |
@@ -136,6 +136,7 @@ await app.register(autoShutdown, {
 - Use `ignore(request, path)` for method/header/query-aware matching.
 - Graceful close is bounded by `closeTimeout`. With `force: false`, a timeout is reported as a shutdown error. With `force: true`, active connections are closed and the plugin waits one additional bounded close phase.
 - `heartbeatInterval` drives both heartbeat emission and memory-limit checks, so very low values can add overhead.
+- If worker IPC disconnects, load reporting stops but an enabled `memoryLimit` check continues locally.
 
 ### Working with `@ynode/cluster` and `@ynode/bootify`
 
@@ -226,7 +227,7 @@ await app.register(autoShutdown, {
 
 The plugin decorates the Fastify instance with a control object, `fastify.autoshutdown`, for manual control and inspection.
 
-- **`app.autoshutdown.reset()`**: Manually arms/re-arms the idle timer.
+- **`app.autoshutdown.reset()`**: Manually arms/re-arms the idle timer. It is ignored while startup grace is active or after closing begins.
 - **`app.autoshutdown.cancel()`**: Manually cancels the timer.
 - **`app.autoshutdown.inFlight`**: (getter) Returns the number of active, non-ignored requests.
 - **`app.autoshutdown.nextAt`**: (getter) Returns the epoch timestamp (ms) when the timer will fire, or `null`.

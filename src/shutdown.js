@@ -60,20 +60,24 @@ async function closeFastify({ fastify, log, force, closeTimeout }) {
     closeIdleConnections(fastify, log);
 }
 
-function disconnectForIdleExit(trigger) {
+function disconnectForIdleExit(trigger, log) {
     if (trigger !== "idle_timer") {
         return;
     }
 
-    if (cluster.isWorker && cluster.worker) {
-        if (typeof cluster.worker.isConnected !== "function" || cluster.worker.isConnected()) {
-            cluster.worker.disconnect();
+    try {
+        if (cluster.isWorker && cluster.worker) {
+            if (typeof cluster.worker.isConnected !== "function" || cluster.worker.isConnected()) {
+                cluster.worker.disconnect();
+            }
+            return;
         }
-        return;
-    }
 
-    if (typeof process.disconnect === "function" && process.connected) {
-        process.disconnect();
+        if (typeof process.disconnect === "function" && process.connected) {
+            process.disconnect();
+        }
+    } catch (err) {
+        log.warn({ err }, "Failed to disconnect idle worker IPC before exit");
     }
 }
 
@@ -141,13 +145,9 @@ export function createShutdownHandler({
             const result = await runHookWithTimeout(hook, [fastify], "onAutoShutdown");
             if (result === false) {
                 log.info("Shutdown cancelled by an onAutoShutdown hook; rescheduling");
-                // Run complete hooks BEFORE re-arming the heartbeat. The
-                // heartbeat can trigger a fresh shutdown (memory_limit) the
-                // moment it ticks, and we must guarantee that the "vetoed"
-                // complete event for this shutdown fires before any new
-                // shutdownStart event is emitted. Keeping isShuttingDown
-                // true across the await blocks both heartbeat-driven and
-                // signal-driven re-entry (see shutdown.js:38, heartbeat.js:34).
+                // Run complete hooks before re-arming the heartbeat. A memory
+                // check can trigger another shutdown as soon as it restarts,
+                // so keep isShuttingDown true until the vetoed event settles.
                 await runLifecycleHooks(
                     shutdownCompleteHooks,
                     {
@@ -159,6 +159,9 @@ export function createShutdownHandler({
                     "onAutoShutdownComplete",
                     fastify,
                 );
+                if (state.closeRequested) {
+                    return;
+                }
                 state.isShuttingDown = false;
                 startHeartbeat();
                 schedule();
@@ -168,23 +171,6 @@ export function createShutdownHandler({
 
         try {
             await closeFastify({ fastify, log, force, closeTimeout });
-
-            await runLifecycleHooks(
-                shutdownCompleteHooks,
-                {
-                    ...startEvent,
-                    completedAt: Date.now(),
-                    durationMs: Date.now() - startedAt,
-                    outcome: "closed",
-                },
-                "onAutoShutdownComplete",
-                fastify,
-            );
-
-            if (exitProcess) {
-                disconnectForIdleExit(trigger);
-                process.exit(0);
-            }
         } catch (err) {
             log.error({ err }, "Error during fastify.close()");
 
@@ -204,6 +190,24 @@ export function createShutdownHandler({
             if (exitProcess) {
                 process.exit(1);
             }
+            return;
+        }
+
+        await runLifecycleHooks(
+            shutdownCompleteHooks,
+            {
+                ...startEvent,
+                completedAt: Date.now(),
+                durationMs: Date.now() - startedAt,
+                outcome: "closed",
+            },
+            "onAutoShutdownComplete",
+            fastify,
+        );
+
+        if (exitProcess) {
+            disconnectForIdleExit(trigger, log);
+            process.exit(0);
         }
     };
 }

@@ -29,7 +29,8 @@ describe("Decorated Control Surface", () => {
         assert.strictEqual(app.autoshutdown.nextAt, null);
         assert.strictEqual(app.autoshutdown.inFlight, 0);
 
-        app.autoshutdown.reset();
+        const resetResult = app.autoshutdown.reset();
+        assert.strictEqual(resetResult, undefined, "reset must not expose its Timeout handle");
         const firstNextAt = app.autoshutdown.nextAt;
         assert.ok(typeof firstNextAt === "number");
         assert.ok(firstNextAt > Date.now(), "nextAt should be in the future");
@@ -58,6 +59,29 @@ describe("Decorated Control Surface", () => {
         assert.ok(
             typeof app.autoshutdown.nextAt === "number",
             "timer should be re-armed after response",
+        );
+
+        await app.close();
+    });
+
+    test("rejects invalid lifecycle decorator hooks", async () => {
+        const app = Fastify();
+
+        await app.register(autoShutdown, {
+            sleep: 60,
+            grace: 0,
+            jitter: 0,
+        });
+        await app.ready();
+
+        assert.throws(() => app.onAutoShutdown(null), /`onAutoShutdown` hook must be a function/);
+        assert.throws(
+            () => app.onAutoShutdownStart("invalid"),
+            /`onAutoShutdownStart` hook must be a function/,
+        );
+        assert.throws(
+            () => app.onAutoShutdownComplete({}),
+            /`onAutoShutdownComplete` hook must be a function/,
         );
 
         await app.close();
