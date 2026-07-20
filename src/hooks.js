@@ -32,24 +32,15 @@ export function registerHooks({
         }
     }
 
-    fastify.addHook("onRequest", async (request, reply) => {
-        const path = normalizePath(request.routeOptions?.url || request.url);
-        request[state.ignoredSymbol] = shouldIgnoreRequest(request, path);
-        if (request[state.ignoredSymbol]) {
+    function settleRequest(request, source) {
+        if (!request[state.trackedSymbol] || request[state.settledSymbol]) {
             return;
         }
 
-        ++state.inFlight;
-        cancel();
-    });
-
-    fastify.addHook("onResponse", async (request, reply) => {
-        if (request[state.ignoredSymbol]) {
-            return;
-        }
+        request[state.settledSymbol] = true;
         if (state.inFlight <= 0) {
             log.warn(
-                { inFlight: state.inFlight },
+                { inFlight: state.inFlight, source },
                 "inFlight underflow detected; possible hook pairing mismatch",
             );
             state.inFlight = 0;
@@ -59,6 +50,31 @@ export function registerHooks({
         if (state.inFlight === 0) {
             schedule();
         }
+    }
+
+    fastify.addHook("onRequest", async (request, reply) => {
+        const path = normalizePath(request.routeOptions?.url || request.url);
+        request[state.ignoredSymbol] = shouldIgnoreRequest(request, path);
+        if (request[state.ignoredSymbol]) {
+            return;
+        }
+
+        request[state.trackedSymbol] = true;
+        request[state.settledSymbol] = false;
+        ++state.inFlight;
+        cancel();
+    });
+
+    fastify.addHook("onResponse", async (request, reply) => {
+        settleRequest(request, "response");
+    });
+
+    fastify.addHook("onRequestAbort", async (request) => {
+        settleRequest(request, "request-abort");
+    });
+
+    fastify.addHook("onTimeout", async (request) => {
+        settleRequest(request, "request-timeout");
     });
 
     fastify.addHook("onListen", async () => {

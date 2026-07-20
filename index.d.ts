@@ -26,7 +26,7 @@ export interface AutoshutdownOptions {
     ignore?: ((request: FastifyRequest, path: string) => boolean) | null;
     /** Random jitter in seconds added to the delay to stagger herd exits. @default 5 */
     jitter?: number;
-    /** If true, calls server.closeAllConnections() after close. @default false */
+    /** If true, calls server.closeAllConnections() when graceful close times out. @default false */
     force?: boolean;
     /** If false, closes Fastify but does not call process.exit(). @default true */
     exitProcess?: boolean;
@@ -36,16 +36,16 @@ export interface AutoshutdownOptions {
     heartbeatInterval?: number;
     /** Max milliseconds to wait for each shutdown hook to complete. @default 5000 */
     hookTimeout?: number;
+    /** Max milliseconds for each graceful or forced Fastify close phase. @default 10000 */
+    closeTimeout?: number;
     /** RSS threshold in MB that triggers shutdown (0 disables). @default 0 */
     memoryLimit?: number;
     /** Lifecycle hook called when shutdown starts. */
     onShutdownStart?:
-        | ((event: AutoShutdownStartEvent, app: FastifyInstance) => void | Promise<void>)
-        | null;
+        ((event: AutoShutdownStartEvent, app: FastifyInstance) => void | Promise<void>) | null;
     /** Lifecycle hook called when shutdown completes, is vetoed, or errors. */
     onShutdownComplete?:
-        | ((event: AutoShutdownCompleteEvent, app: FastifyInstance) => void | Promise<void>)
-        | null;
+        ((event: AutoShutdownCompleteEvent, app: FastifyInstance) => void | Promise<void>) | null;
 }
 
 export interface AutoshutdownControl {

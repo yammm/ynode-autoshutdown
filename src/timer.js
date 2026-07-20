@@ -12,8 +12,8 @@ export function createTimerController({ state, delay, jitter, shutdown }) {
         if (state.timer) {
             clearTimeout(state.timer);
             state.timer = null;
-            state.nextAt = null;
         }
+        state.nextAt = null;
     }
 
     function schedule() {
@@ -26,8 +26,7 @@ export function createTimerController({ state, delay, jitter, shutdown }) {
             return null;
         }
 
-        const jitterMs =
-            jitter > 0 ? Math.floor(Math.random() * Math.min(jitter * 1000, delay / 3)) : 0;
+        const jitterMs = jitter > 0 ? Math.floor(Math.random() * jitter * 1000) : 0;
         const ms = delay + jitterMs;
         state.nextAt = Date.now() + ms;
         state.timer = setTimeout(() => {

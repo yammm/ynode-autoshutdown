@@ -78,11 +78,12 @@ The plugin accepts the following options:
 | `ignoreUrls` | `Array<string \| RegExp>` | `[]` | An array of URL paths or `RegExp` patterns to ignore for timer logic. |
 | `ignore` | `(request, path) => boolean` | `null` | Optional function matcher for ignore logic. Return `true` to ignore that request. |
 | `jitter` | `number` | `5` | Adds a random delay (in **seconds**) to the sleep timer to avoid herd shutdowns. |
-| `force` | `boolean` | `false` | If `true`, use `server.closeAllConnections()` after close. ⚠️ **Dangerous**. |
+| `force` | `boolean` | `false` | If `true`, use `server.closeAllConnections()` when graceful close exceeds `closeTimeout`. **May drop active clients.** |
 | `exitProcess` | `boolean` | `true` | If `false`, plugin closes Fastify but does not call `process.exit(...)`. |
 | `reportLoad` | `boolean` | `false` | If `true`, sends IPC heartbeat messages with Event Loop Lag and memory usage. |
 | `heartbeatInterval` | `number` | `2000` | Interval in **milliseconds** for heartbeats and memory checks (**must be > 0**). |
 | `hookTimeout` | `number` | `5000` | Maximum time in **milliseconds** to wait for an `onAutoShutdown` hook to resolve. |
+| `closeTimeout` | `number` | `10000` | Maximum time in **milliseconds** for each graceful or forced Fastify close phase. |
 | `memoryLimit` | `number` | `0` | Memory limit in **Megabytes** (RSS). If exceeded, the server shuts down. `0` = disabled. |
 | `onShutdownStart` | `(event, app) => void` | `null` | Optional lifecycle observer called when shutdown starts. |
 | `onShutdownComplete` | `(event, app) => void` | `null` | Optional lifecycle observer called with outcome (`closed`, `vetoed`, `error`). |
@@ -98,6 +99,7 @@ The plugin accepts the following options:
 | `jitter`            | seconds         | `5` = up to 5s of jitter |
 | `heartbeatInterval` | milliseconds    | `2000` = 2 seconds       |
 | `hookTimeout`       | milliseconds    | `5000` = 5 seconds       |
+| `closeTimeout`      | milliseconds    | `10000` = 10 seconds     |
 | `memoryLimit`       | megabytes (RSS) | `512` = 512 MB RSS       |
 
 ```javascript
@@ -107,6 +109,7 @@ await app.register(autoShutdown, {
     jitter: 5, // seconds
     heartbeatInterval: 2000, // ms
     hookTimeout: 5000, // ms
+    closeTimeout: 10000, // ms
     memoryLimit: 512, // MB (RSS)
 });
 ```
@@ -118,6 +121,7 @@ await app.register(autoShutdown, {
 | Startup grace period | `0` | Timer waits until grace ends | No shutdown during grace |
 | Non-ignored request starts | `+1` | Timer is cancelled | Shutdown paused while request runs |
 | Last non-ignored response completes | back to `0` | Timer is re-armed | Shutdown may occur after `sleep` (+ jitter) |
+| Non-ignored request aborts or times out | back toward `0` once | Timer is re-armed at `0` | Abandoned requests cannot pin a worker active |
 | Ignored request (string/RegExp match) | unchanged | Timer is unchanged | Request does not delay shutdown |
 | Hook returns `false` | unchanged | Timer is re-armed | Shutdown is vetoed for that cycle |
 | Hook throws or times out | unchanged | Continue current shutdown | Shutdown proceeds |
@@ -127,11 +131,17 @@ await app.register(autoShutdown, {
 
 - The plugin calls `process.exit(0)` after successful shutdown and `process.exit(1)` if `fastify.close()` fails.
 - Set `exitProcess: false` when this plugin runs in-process with other workloads and you do not want worker exit behavior.
-- In the same Fastify encapsulation scope, duplicate plugin registration is skipped with a warning.
+- Duplicate plugin registration in the same Fastify encapsulation scope throws an error.
 - String `ignoreUrls` are exact path matches; query strings are stripped before matching. Use `RegExp` for pattern-based matching.
 - Use `ignore(request, path)` for method/header/query-aware matching.
-- `force: true` calls `server.closeAllConnections()` and may drop active clients abruptly.
+- Graceful close is bounded by `closeTimeout`. With `force: false`, a timeout is reported as a shutdown error. With `force: true`, active connections are closed and the plugin waits one additional bounded close phase.
 - `heartbeatInterval` drives both heartbeat emission and memory-limit checks, so very low values can add overhead.
+
+### Working with `@ynode/cluster` and `@ynode/bootify`
+
+A successful idle shutdown calls `cluster.worker.disconnect()` before process exit. Node marks that exit as voluntary, allowing `@ynode/cluster` smart pools to reduce desired capacity while still enforcing `minWorkers`. Failed shutdowns exit non-zero without a voluntary disconnect so Cluster restores capacity.
+
+When Bootify manages the worker, configure only idle behavior through `config.sleep`. Bootify intentionally reserves load reporting, memory retirement, and process exit ownership for `@ynode/cluster`; this prevents duplicate heartbeat loops and conflicting replacement decisions.
 
 ## Advanced Usage
 

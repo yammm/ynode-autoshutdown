@@ -9,11 +9,13 @@ export function createLifecycle({ hookTimeout, log }) {
     const timeoutSentinel = Symbol("hook-timeout");
 
     async function runHookWithTimeout(hook, args, kind) {
+        let timeout = null;
         try {
             const hookPromise = Promise.resolve(hook(...args));
-            const timeoutPromise = new Promise((resolve) =>
-                setTimeout(() => resolve(timeoutSentinel), hookTimeout).unref(),
-            );
+            const timeoutPromise = new Promise((resolve) => {
+                timeout = setTimeout(() => resolve(timeoutSentinel), hookTimeout);
+                timeout.unref();
+            });
 
             const result = await Promise.race([hookPromise, timeoutPromise]);
             if (result === timeoutSentinel) {
@@ -24,6 +26,10 @@ export function createLifecycle({ hookTimeout, log }) {
         } catch (err) {
             log.error({ err }, `Error in ${kind} hook (ignored)`);
             return undefined;
+        } finally {
+            if (timeout) {
+                clearTimeout(timeout);
+            }
         }
     }
 

@@ -51,8 +51,16 @@ export function createHeartbeatController({
                 }
             }
 
-            if (reportLoad && process.send) {
-                process.send({ cmd: "heartbeat", lag, memory: mem });
+            if (reportLoad && typeof process.send === "function" && process.connected !== false) {
+                try {
+                    process.send({ cmd: "heartbeat", lag, memory: mem }, (err) => {
+                        if (err) {
+                            log.debug({ err }, "Failed to send heartbeat to parent process");
+                        }
+                    });
+                } catch (err) {
+                    log.debug({ err }, "Failed to send heartbeat to parent process");
+                }
             }
         }, heartbeatInterval);
         state.intervalTimer.unref();

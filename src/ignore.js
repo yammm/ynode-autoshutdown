@@ -25,9 +25,21 @@ export function shouldIgnorePath(path, list) {
     if (!list?.length) {
         return false;
     }
-    return list.some((p) =>
-        typeof p === "string" ? p === path : p && typeof p.test === "function" && p.test(path),
-    );
+    return list.some((pattern) => {
+        if (typeof pattern === "string") {
+            return pattern === path;
+        }
+        if (!(pattern instanceof RegExp)) {
+            return false;
+        }
+
+        pattern.lastIndex = 0;
+        try {
+            return pattern.test(path);
+        } finally {
+            pattern.lastIndex = 0;
+        }
+    });
 }
 
 /**

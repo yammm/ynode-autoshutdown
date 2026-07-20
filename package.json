@@ -3,6 +3,7 @@
     "version": "1.7.0",
     "description": "Fastify 5 plugin that shuts down idle workers after a period of inactivity",
     "main": "src/plugin.js",
+    "types": "index.d.ts",
     "type": "module",
     "license": "MIT",
     "author": "Michael Welter <me@mikinho.com>",

@@ -47,11 +47,12 @@ import { createTimerController } from "./timer.js";
  * @param {Array<string|RegExp>} [options.ignoreUrls=[]] URLs or route patterns to ignore for timer logic.
  * @param {function(FastifyRequest, string): boolean} [options.ignore] Optional request matcher to ignore timer logic.
  * @param {number} [options.jitter=5] Optional jitter (seconds) added to the delay to reduce herd exits.
- * @param {boolean} [options.force=false] If true, attempt `server.closeAllConnections()` after close. ⚠️ Dangerous.
+ * @param {boolean} [options.force=false] If true, call `server.closeAllConnections()` after close timeout.
  * @param {boolean} [options.exitProcess=true] If false, closes Fastify but does not call `process.exit`.
  * @param {boolean} [options.reportLoad=false] If true, send IPC heartbeat messages.
  * @param {number} [options.heartbeatInterval=2000] Heartbeat interval in milliseconds (> 0).
  * @param {number} [options.hookTimeout=5000] Max milliseconds to wait for each shutdown hook (>= 0).
+ * @param {number} [options.closeTimeout=10000] Max milliseconds for graceful and forced close phases (> 0).
  * @param {number} [options.memoryLimit=0] RSS threshold in MB that triggers shutdown (>= 0, 0 disables).
  * @param {function(object, FastifyInstance): (void|Promise<void>)} [options.onShutdownStart] Optional lifecycle hook called when shutdown starts.
  * @param {function(object, FastifyInstance): (void|Promise<void>)} [options.onShutdownComplete] Optional lifecycle hook called when shutdown completes/cancels/fails.
@@ -126,6 +127,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
         fastify,
         log,
         force: cfg.force,
+        closeTimeout: cfg.closeTimeout,
         exitProcess: cfg.exitProcess,
         shutdownHooks,
         shutdownStartHooks,
@@ -173,7 +175,9 @@ async function autoShutdownPlugin(fastify, options = {}) {
     });
 }
 
-export default fp(autoShutdownPlugin, {
+export const autoshutdown = fp(autoShutdownPlugin, {
     fastify: "5.x",
     name: "@ynode/autoshutdown",
 });
+
+export default autoshutdown;

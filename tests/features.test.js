@@ -69,7 +69,7 @@ describe("Feature Options", () => {
         }
     });
 
-    test("cluster worker disconnects IPC before process.exit(0)", async () => {
+    test("connected child process disconnects IPC before process.exit(0)", async () => {
         const app = Fastify();
 
         const originalExit = process.exit;
@@ -105,7 +105,7 @@ describe("Feature Options", () => {
             assert.strictEqual(
                 disconnectCalled,
                 true,
-                "process.disconnect() must be called in cluster context",
+                "process.disconnect() must be called in a connected child process",
             );
             assert.strictEqual(exitCode, 0);
             assert.deepStrictEqual(
@@ -188,6 +188,7 @@ describe("Feature Options", () => {
         assert.strictEqual(startEvents.length, 1);
         assert.strictEqual(completeEvents.length, 1);
         assert.strictEqual(startEvents[0].trigger, "idle_timer");
+        assert.strictEqual(typeof startEvents[0].nextAt, "number");
         assert.strictEqual(completeEvents[0].outcome, "closed");
         assert.ok(completeEvents[0].durationMs >= 0);
 
