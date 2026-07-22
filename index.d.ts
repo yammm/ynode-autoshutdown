@@ -1,7 +1,12 @@
 import { FastifyPluginAsync, FastifyInstance, FastifyRequest } from "fastify";
 
 export interface AutoShutdownStartEvent {
-    trigger: "idle_timer" | "memory_limit";
+    /**
+     * Shutdown source. Built-in triggers include "idle_timer" and
+     * "memory_limit"; integrators may see other string values from direct
+     * shutdown orchestration.
+     */
+    trigger: string;
     pid: number;
     inFlight: number;
     nextAt: number | null;

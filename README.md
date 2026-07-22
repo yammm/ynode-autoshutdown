@@ -185,7 +185,7 @@ You can observe shutdown lifecycles either through registration options or decor
 
 `event` includes fields such as:
 
-- `trigger`: `"idle_timer"` or `"memory_limit"`
+- `trigger`: shutdown source string. Built-in values are `"idle_timer"` and `"memory_limit"`; orchestration integrations may pass additional trigger names.
 - `startedAt`, `completedAt`, `durationMs`
 - `outcome`: `"closed"`, `"vetoed"`, or `"error"` (complete hook)
 - `pid`, `inFlight`, `nextAt`
