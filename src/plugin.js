@@ -57,6 +57,7 @@ import { createTimerController } from "./timer.js";
  *   `fastify.close()` continues in the background; its eventual completion or failure is logged.
  * @param {number} [options.memoryLimit=0] RSS threshold in MB that triggers shutdown (>= 0, 0 disables).
  * @param {function(object, FastifyInstance): (void|Promise<void>)} [options.onShutdownStart] Optional lifecycle hook called when shutdown starts.
+ * @param {function(object, FastifyInstance): (void|Promise<void>)} [options.onShutdownCommit] Optional lifecycle hook called after every veto hook accepts, immediately before Fastify closes.
  * @param {function(object, FastifyInstance): (void|Promise<void>)} [options.onShutdownComplete] Optional lifecycle hook called when shutdown completes/cancels/fails.
  */
 async function autoShutdownPlugin(fastify, options = {}) {
@@ -74,6 +75,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
 
     const shutdownHooks = [];
     const shutdownStartHooks = [];
+    const shutdownCommitHooks = [];
     const shutdownCompleteHooks = [];
 
     function addShutdownHook(list, name, fn) {
@@ -85,6 +87,9 @@ async function autoShutdownPlugin(fastify, options = {}) {
 
     if (typeof cfg.onShutdownStart === "function") {
         shutdownStartHooks.push(cfg.onShutdownStart);
+    }
+    if (typeof cfg.onShutdownCommit === "function") {
+        shutdownCommitHooks.push(cfg.onShutdownCommit);
     }
     if (typeof cfg.onShutdownComplete === "function") {
         shutdownCompleteHooks.push(cfg.onShutdownComplete);
@@ -98,6 +103,11 @@ async function autoShutdownPlugin(fastify, options = {}) {
     /** Registers an observer that runs when a shutdown attempt starts. */
     fastify.decorate("onAutoShutdownStart", (fn) => {
         addShutdownHook(shutdownStartHooks, "onAutoShutdownStart", fn);
+    });
+
+    /** Registers an observer that runs after every veto hook accepts. */
+    fastify.decorate("onAutoShutdownCommit", (fn) => {
+        addShutdownHook(shutdownCommitHooks, "onAutoShutdownCommit", fn);
     });
 
     /** Registers an observer that runs when a shutdown attempt settles. */
@@ -137,6 +147,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
         exitProcess: cfg.exitProcess,
         shutdownHooks,
         shutdownStartHooks,
+        shutdownCommitHooks,
         shutdownCompleteHooks,
         runHookWithTimeout: lifecycle.runHookWithTimeout,
         runLifecycleHooks: lifecycle.runLifecycleHooks,

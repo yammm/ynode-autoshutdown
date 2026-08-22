@@ -181,14 +181,16 @@ app.get("/stop-task", (request, reply) => {
 You can observe shutdown lifecycles either through registration options or decorators:
 
 - `onShutdownStart(event, app)`
+- `onShutdownCommit(event, app)`
 - `onShutdownComplete(event, app)`
 - `app.onAutoShutdownStart(fn)`
+- `app.onAutoShutdownCommit(fn)`
 - `app.onAutoShutdownComplete(fn)`
 
 `event` includes fields such as:
 
 - `trigger`: shutdown source string. Built-in values are `"idle_timer"` and `"memory_limit"`; orchestration integrations may pass additional trigger names.
-- `startedAt`, `completedAt`, `durationMs`
+- `startedAt`, `committedAt`, `completedAt`, `durationMs`
 - `outcome`: `"closed"`, `"vetoed"`, or `"error"` (complete hook)
 - `pid`, `inFlight`, `nextAt`
 
@@ -198,6 +200,10 @@ await app.register(autoShutdown, {
     exitProcess: false,
     onShutdownStart: (event) => {
         app.log.info({ event }, "shutdown started");
+    },
+    onShutdownCommit: (event) => {
+        // Every veto hook accepted. Destructive cleanup is now safe.
+        app.log.info({ event }, "shutdown committed");
     },
     onShutdownComplete: (event) => {
         app.log.info({ event }, "shutdown finished");
@@ -231,7 +237,7 @@ The plugin decorates the Fastify instance with a control object, `fastify.autosh
 
 - **`app.autoshutdown.reset()`**: Manually arms/re-arms the idle timer. It is a no-op before the server starts listening, while startup grace is active, while `inFlight > 0`, or after closing begins.
 - **`app.autoshutdown.cancel()`**: Manually cancels the timer.
-- **`app.autoshutdown.shutdown(trigger)`**: Initiates the shutdown sequence with a custom trigger name (default `"manual"`); the name flows into lifecycle hook events. Throws a `TypeError` unless `trigger` is a non-empty string; resolves once the shutdown attempt settles and is a no-op if a shutdown is already in progress.
+- **`app.autoshutdown.shutdown(trigger)`**: Initiates the shutdown sequence with a custom trigger name (default `"manual"`); the name flows into lifecycle hook events. Throws a `TypeError` unless `trigger` is a non-empty string and resolves once the shutdown attempt settles. Concurrent calls join the active attempt.
 - **`app.autoshutdown.inFlight`**: (getter) Returns the number of active, non-ignored requests.
 - **`app.autoshutdown.nextAt`**: (getter) Returns the epoch timestamp (ms) when the timer will fire, or `null`.
 - **`app.autoshutdown.delay`**: (getter) Returns the configured base delay in milliseconds.

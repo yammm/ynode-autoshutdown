@@ -85,6 +85,7 @@ describe("Option Validation", () => {
             ["reportLoad", 1, /`reportLoad` must be a boolean/],
             ["closeTimeout", 0, /`closeTimeout` must be > 0/],
             ["onShutdownStart", true, /`onShutdownStart` must be a function/],
+            ["onShutdownCommit", "yes", /`onShutdownCommit` must be a function/],
             ["onShutdownComplete", {}, /`onShutdownComplete` must be a function/],
         ]) {
             await t.test(name, async () => {
@@ -112,10 +113,10 @@ describe("Option Validation", () => {
     test("rejects unknown option keys with a TypeError naming them", async () => {
         const app = Fastify();
         try {
-            app.register(autoShutdown, { slep: 600 });
+            app.register(autoShutdown, { slep: 600, constructor: true });
             await assert.rejects(app.ready(), (err) => {
                 assert.ok(err instanceof TypeError);
-                assert.match(err.message, /unknown option\(s\): slep/);
+                assert.match(err.message, /unknown option\(s\): slep, constructor/);
                 return true;
             });
         } finally {

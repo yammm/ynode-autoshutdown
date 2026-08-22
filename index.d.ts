@@ -20,6 +20,11 @@ export interface AutoShutdownCompleteEvent extends AutoShutdownStartEvent {
     error?: Error;
 }
 
+export interface AutoShutdownCommitEvent extends AutoShutdownStartEvent {
+    /** Epoch timestamp (ms) when all veto hooks had accepted shutdown. */
+    committedAt: number;
+}
+
 export interface AutoshutdownOptions {
     /** Inactivity period in seconds before shutdown. @default 1800 */
     sleep?: number;
@@ -59,6 +64,9 @@ export interface AutoshutdownOptions {
     /** Lifecycle hook called when shutdown starts. */
     onShutdownStart?:
         ((event: AutoShutdownStartEvent, app: FastifyInstance) => void | Promise<void>) | null;
+    /** Lifecycle hook called after all veto hooks accept, immediately before Fastify closes. */
+    onShutdownCommit?:
+        ((event: AutoShutdownCommitEvent, app: FastifyInstance) => void | Promise<void>) | null;
     /** Lifecycle hook called when shutdown completes, is vetoed, or errors. */
     onShutdownComplete?:
         ((event: AutoShutdownCompleteEvent, app: FastifyInstance) => void | Promise<void>) | null;
@@ -76,7 +84,8 @@ export interface AutoshutdownControl {
     /**
      * Initiates the shutdown sequence with a custom trigger name that is
      * passed through to lifecycle hook events. No-op if a shutdown is already
-     * in progress. Throws a TypeError if trigger is not a non-empty string.
+     * in progress. Concurrent calls join the active attempt. Throws a TypeError
+     * if trigger is not a non-empty string.
      * @param trigger Non-empty trigger name. @default "manual"
      */
     shutdown(trigger?: string): Promise<void>;
@@ -96,6 +105,9 @@ declare module "fastify" {
         ): void;
         onAutoShutdownStart(
             fn: (event: AutoShutdownStartEvent, app: FastifyInstance) => void | Promise<void>,
+        ): void;
+        onAutoShutdownCommit(
+            fn: (event: AutoShutdownCommitEvent, app: FastifyInstance) => void | Promise<void>,
         ): void;
         onAutoShutdownComplete(
             fn: (event: AutoShutdownCompleteEvent, app: FastifyInstance) => void | Promise<void>,

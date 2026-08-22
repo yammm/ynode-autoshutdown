@@ -140,6 +140,7 @@ function disconnectForIdleExit(trigger, log) {
  * @param {boolean} deps.exitProcess - Whether to call process.exit() after shutdown.
  * @param {function[]} deps.shutdownHooks - Veto hooks; returning false cancels shutdown.
  * @param {function[]} deps.shutdownStartHooks - Lifecycle hooks fired when shutdown begins.
+ * @param {function[]} deps.shutdownCommitHooks - Lifecycle hooks fired after vetoes accept.
  * @param {function[]} deps.shutdownCompleteHooks - Lifecycle hooks fired when shutdown ends.
  * @param {function} deps.runHookWithTimeout - Executes a hook with timeout protection.
  * @param {function} deps.runLifecycleHooks - Executes an array of lifecycle hooks sequentially.
@@ -158,6 +159,7 @@ export function createShutdownHandler({
     exitProcess,
     shutdownHooks,
     shutdownStartHooks,
+    shutdownCommitHooks = [],
     shutdownCompleteHooks,
     runHookWithTimeout,
     runLifecycleHooks,
@@ -166,11 +168,9 @@ export function createShutdownHandler({
     startHeartbeat,
     stopHeartbeat,
 }) {
-    return async function shutdown(trigger = "idle_timer") {
-        if (state.isShuttingDown) {
-            return;
-        }
+    let activeShutdownPromise = null;
 
+    async function performShutdown(trigger) {
         // A queued timer callback can begin shutdown after a request arrives:
         // cancel() cannot unqueue an already-fired callback. Recheck in-flight
         // work here and stand down; settlement re-arms the timer.
@@ -228,6 +228,13 @@ export function createShutdownHandler({
             }
         }
 
+        await runLifecycleHooks(
+            shutdownCommitHooks,
+            { ...startEvent, committedAt: Date.now() },
+            "onAutoShutdownCommit",
+            fastify,
+        );
+
         try {
             await closeFastify({ fastify, log, force, closeTimeout });
         } catch (err) {
@@ -268,5 +275,24 @@ export function createShutdownHandler({
             disconnectForIdleExit(trigger, log);
             process.exit(0);
         }
+    }
+
+    return function shutdown(trigger = "idle_timer") {
+        if (activeShutdownPromise) {
+            return activeShutdownPromise;
+        }
+        if (state.isShuttingDown) {
+            return Promise.resolve();
+        }
+
+        const attempt = performShutdown(trigger);
+        activeShutdownPromise = attempt;
+        const releaseAttempt = () => {
+            if (!state.isShuttingDown && activeShutdownPromise === attempt) {
+                activeShutdownPromise = null;
+            }
+        };
+        void attempt.then(releaseAttempt, releaseAttempt);
+        return attempt;
     };
 }

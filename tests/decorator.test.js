@@ -87,6 +87,10 @@ describe("Decorated Control Surface", () => {
             /`onAutoShutdownStart` hook must be a function/,
         );
         assert.throws(
+            () => app.onAutoShutdownCommit(false),
+            /`onAutoShutdownCommit` hook must be a function/,
+        );
+        assert.throws(
             () => app.onAutoShutdownComplete({}),
             /`onAutoShutdownComplete` hook must be a function/,
         );

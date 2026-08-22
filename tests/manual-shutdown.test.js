@@ -78,7 +78,7 @@ test("shutdown(trigger) rejects invalid trigger names", async () => {
     }
 });
 
-test("shutdown(trigger) is a no-op while a shutdown is in progress", async () => {
+test("concurrent shutdown(trigger) calls join the active shutdown attempt", async () => {
     const startEvents = [];
     const completeEvents = [];
     let release;
@@ -97,9 +97,49 @@ test("shutdown(trigger) is a no-op while a shutdown is in progress", async () =>
 
     const first = app.autoshutdown.shutdown("drain");
     const second = app.autoshutdown.shutdown("drain-again");
+
+    let secondSettled = false;
+    void second.then(() => {
+        secondSettled = true;
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.strictEqual(secondSettled, false, "re-entry must wait for the active close");
+
     release();
     await Promise.all([first, second]);
 
     assert.strictEqual(startEvents.length, 1, "re-entry must not start a second shutdown");
     assert.strictEqual(startEvents[0].trigger, "drain");
+});
+
+test("shutdown commit observers run only after every veto hook accepts", async () => {
+    const startEvents = [];
+    const completeEvents = [];
+    const commitEvents = [];
+    const vetoedApp = await createApp({ startEvents, completeEvents });
+    vetoedApp.onAutoShutdown(() => false);
+    vetoedApp.onAutoShutdownCommit((event) => commitEvents.push(event));
+
+    await vetoedApp.autoshutdown.shutdown("veto-check");
+
+    assert.strictEqual(commitEvents.length, 0, "a vetoed attempt must never commit");
+    assert.strictEqual(completeEvents[0].outcome, "vetoed");
+    await vetoedApp.close();
+
+    const acceptedStarts = [];
+    const acceptedCompletions = [];
+    const acceptedCommits = [];
+    const acceptedApp = await createApp({
+        startEvents: acceptedStarts,
+        completeEvents: acceptedCompletions,
+    });
+    acceptedApp.onAutoShutdown(() => true);
+    acceptedApp.onAutoShutdownCommit((event) => acceptedCommits.push(event));
+
+    await acceptedApp.autoshutdown.shutdown("commit-check");
+
+    assert.strictEqual(acceptedCommits.length, 1);
+    assert.strictEqual(acceptedCommits[0].trigger, "commit-check");
+    assert.ok(acceptedCommits[0].committedAt >= acceptedCommits[0].startedAt);
+    assert.strictEqual(acceptedCompletions[0].outcome, "closed");
 });

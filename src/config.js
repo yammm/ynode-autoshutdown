@@ -37,6 +37,7 @@ const DEFAULTS = {
     closeTimeout: 10000, // ms
     memoryLimit: 0, // MB
     onShutdownStart: null,
+    onShutdownCommit: null,
     onShutdownComplete: null,
 };
 
@@ -47,7 +48,7 @@ const DEFAULTS = {
  * @throws {TypeError} If any option key is not a recognized option.
  */
 export function createConfig(options = {}) {
-    const unknownKeys = Object.keys(options).filter((key) => !(key in DEFAULTS));
+    const unknownKeys = Object.keys(options).filter((key) => !Object.hasOwn(DEFAULTS, key));
     if (unknownKeys.length > 0) {
         throw new TypeError(`@ynode/autoshutdown: unknown option(s): ${unknownKeys.join(", ")}`);
     }
@@ -78,6 +79,7 @@ export function validateConfig(cfg) {
         closeTimeout,
         memoryLimit,
         onShutdownStart,
+        onShutdownCommit,
         onShutdownComplete,
     } = cfg;
 
@@ -124,6 +126,9 @@ export function validateConfig(cfg) {
     }
     if (onShutdownStart !== null && typeof onShutdownStart !== "function") {
         throw new Error("@ynode/autoshutdown: `onShutdownStart` must be a function");
+    }
+    if (onShutdownCommit !== null && typeof onShutdownCommit !== "function") {
+        throw new Error("@ynode/autoshutdown: `onShutdownCommit` must be a function");
     }
     if (onShutdownComplete !== null && typeof onShutdownComplete !== "function") {
         throw new Error("@ynode/autoshutdown: `onShutdownComplete` must be a function");
