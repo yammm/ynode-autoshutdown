@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 /**
  * Creates hook execution utilities with timeout protection for shutdown lifecycle hooks.
  * @param {object} deps - Injected dependencies.
@@ -9,15 +11,14 @@ export function createLifecycle({ hookTimeout, log }) {
     const timeoutSentinel = Symbol("hook-timeout");
 
     async function runHookWithTimeout(hook, args, kind) {
-        let timeout = null;
+        // Aborted in `finally` once the race settles; Promise.race keeps the
+        // losing timer promise handled, so the abort rejection never leaks.
+        const deadline = new AbortController();
         try {
-            const hookPromise = Promise.resolve(hook(...args));
-            const timeoutPromise = new Promise((resolve) => {
-                timeout = setTimeout(() => resolve(timeoutSentinel), hookTimeout);
-                timeout.unref();
-            });
-
-            const result = await Promise.race([hookPromise, timeoutPromise]);
+            const result = await Promise.race([
+                Promise.resolve(hook(...args)),
+                sleep(hookTimeout, timeoutSentinel, { ref: false, signal: deadline.signal }),
+            ]);
             if (result === timeoutSentinel) {
                 log.error({ hook: hook.name || "anonymous", kind }, `${kind} hook timed out`);
                 return timeoutSentinel;
@@ -27,9 +28,7 @@ export function createLifecycle({ hookTimeout, log }) {
             log.error({ err }, `Error in ${kind} hook (ignored)`);
             return undefined;
         } finally {
-            if (timeout) {
-                clearTimeout(timeout);
-            }
+            deadline.abort();
         }
     }
 
