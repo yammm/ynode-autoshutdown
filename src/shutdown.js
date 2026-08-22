@@ -37,24 +37,45 @@ function closeIdleConnections(fastify, log) {
     }
 }
 
+function observeAbandonedClose(closePromise, log) {
+    // Fire-and-forget by design: the shutdown attempt already reported a
+    // timeout error, but fastify.close() keeps running. Record how the
+    // abandoned close eventually settles so operators are not left guessing.
+    void closePromise.then(
+        () => {
+            log.warn("Fastify close completed after its timeout was reported");
+        },
+        (err) => {
+            log.error({ err }, "Fastify close failed after its timeout was reported");
+        },
+    );
+}
+
 async function closeFastify({ fastify, log, force, closeTimeout }) {
     const closePromise = Promise.resolve().then(() => fastify.close());
 
     try {
-        await waitForClose(closePromise, closeTimeout, "grace period");
-    } catch (err) {
-        if (err?.code !== CLOSE_TIMEOUT_CODE || !force) {
-            throw err;
-        }
-
-        log.warn({ closeTimeout }, "Fastify close timed out; force-closing active connections");
-        closeIdleConnections(fastify, log);
         try {
-            fastify.server?.closeAllConnections?.();
-        } catch (closeErr) {
-            log.warn({ err: closeErr }, "Error during closeAllConnections");
+            await waitForClose(closePromise, closeTimeout, "grace period");
+        } catch (err) {
+            if (err?.code !== CLOSE_TIMEOUT_CODE || !force) {
+                throw err;
+            }
+
+            log.warn({ closeTimeout }, "Fastify close timed out; force-closing active connections");
+            closeIdleConnections(fastify, log);
+            try {
+                fastify.server?.closeAllConnections?.();
+            } catch (closeErr) {
+                log.warn({ err: closeErr }, "Error during closeAllConnections");
+            }
+            await waitForClose(closePromise, closeTimeout, "force-close period");
         }
-        await waitForClose(closePromise, closeTimeout, "force-close period");
+    } catch (err) {
+        if (err?.code === CLOSE_TIMEOUT_CODE) {
+            observeAbandonedClose(closePromise, log);
+        }
+        throw err;
     }
 
     closeIdleConnections(fastify, log);
@@ -90,6 +111,9 @@ function disconnectForIdleExit(trigger, log) {
  * @param {object} deps.log - Child logger instance.
  * @param {boolean} deps.force - Whether to force-close connections after a close timeout.
  * @param {number} deps.closeTimeout - Maximum milliseconds for graceful and forced close phases.
+ *   When a close phase times out and is reported as an `"error"` outcome, the underlying
+ *   `fastify.close()` keeps running in the background; its eventual completion or failure
+ *   is logged.
  * @param {boolean} deps.exitProcess - Whether to call process.exit() after shutdown.
  * @param {function[]} deps.shutdownHooks - Veto hooks; returning false cancels shutdown.
  * @param {function[]} deps.shutdownStartHooks - Lifecycle hooks fired when shutdown begins.

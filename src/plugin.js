@@ -53,6 +53,8 @@ import { createTimerController } from "./timer.js";
  * @param {number} [options.heartbeatInterval=2000] Heartbeat interval in milliseconds (> 0).
  * @param {number} [options.hookTimeout=5000] Max milliseconds per shutdown hook; with 0, hooks must settle before the next timer turn.
  * @param {number} [options.closeTimeout=10000] Max milliseconds for graceful and forced close phases (> 0).
+ *   A close phase that exceeds the timeout is reported as an `"error"` outcome while the underlying
+ *   `fastify.close()` continues in the background; its eventual completion or failure is logged.
  * @param {number} [options.memoryLimit=0] RSS threshold in MB that triggers shutdown (>= 0, 0 disables).
  * @param {function(object, FastifyInstance): (void|Promise<void>)} [options.onShutdownStart] Optional lifecycle hook called when shutdown starts.
  * @param {function(object, FastifyInstance): (void|Promise<void>)} [options.onShutdownComplete] Optional lifecycle hook called when shutdown completes/cancels/fails.

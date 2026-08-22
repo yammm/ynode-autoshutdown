@@ -135,6 +135,7 @@ await app.register(autoShutdown, {
 - String `ignoreUrls` are exact path matches; query strings are stripped before matching. Use `RegExp` for pattern-based matching.
 - Use `ignore(request, path)` for method/header/query-aware matching.
 - Graceful close is bounded by `closeTimeout`. With `force: false`, a timeout is reported as a shutdown error. With `force: true`, active connections are closed and the plugin waits one additional bounded close phase.
+- A reported close timeout does not abort the underlying `fastify.close()`. With `exitProcess: false`, the instance may still finish closing (or fail) after the `"error"` outcome was delivered; the plugin logs that late settlement when it happens.
 - `heartbeatInterval` drives both heartbeat emission and memory-limit checks, so very low values can add overhead.
 - If worker IPC disconnects, load reporting stops but an enabled `memoryLimit` check continues locally.
 

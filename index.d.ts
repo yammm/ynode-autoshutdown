@@ -41,7 +41,13 @@ export interface AutoshutdownOptions {
     heartbeatInterval?: number;
     /** Max milliseconds per shutdown hook; with 0, hooks must settle before the next timer turn. @default 5000 */
     hookTimeout?: number;
-    /** Max milliseconds for each graceful or forced Fastify close phase. @default 10000 */
+    /**
+     * Max milliseconds for each graceful or forced Fastify close phase. A phase
+     * that exceeds the timeout is reported as an "error" outcome while the
+     * underlying fastify.close() continues in the background; its eventual
+     * completion or failure is logged.
+     * @default 10000
+     */
     closeTimeout?: number;
     /** RSS threshold in MB that triggers shutdown (0 disables). @default 0 */
     memoryLimit?: number;
