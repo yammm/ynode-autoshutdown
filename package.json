@@ -1,6 +1,6 @@
 {
     "name": "@ynode/autoshutdown",
-    "version": "1.9.0+336716",
+    "version": "1.9.0+336783",
     "description": "Fastify 5 plugin that shuts down idle workers after a period of inactivity",
     "main": "src/plugin.js",
     "types": "index.d.ts",
@@ -43,6 +43,7 @@
         "@eslint/json": "^2.0.1",
         "@eslint/markdown": "^8.0.3",
         "@mikinho/autover": "^3.0.0",
+        "@types/node": "^20.19.43",
         "auto-changelog": "^2.6.0",
         "eslint": "^10.7.0",
         "eslint-config-prettier": "^10.1.8",
@@ -52,6 +53,7 @@
         "jsdoc": "^4.0.5",
         "prettier": "^3.9.6",
         "rimraf": "^6.1.3",
+        "typescript": "^7.0.2",
         "wtfnode": "^0.10.1"
     },
     "scripts": {
@@ -66,7 +68,8 @@
         "ver:preview": "npx autover --no-amend --dry-run --short",
         "ver:apply": "npx autover --guard-unchanged --short",
         "test": "node --test",
-        "prepublishOnly": "npm run format:check && npm run lint && npm test && npm run docs",
+        "test:types": "tsc -p type-tests/tsconfig.json",
+        "prepublishOnly": "npm run format:check && npm run lint && npm test && npm run test:types && npm run docs",
         "postversion": "git push && git push --tags"
     },
     "publishConfig": {
@@ -76,6 +79,7 @@
         "index.d.ts",
         "src",
         "README.md",
+        "CHANGELOG.md",
         "LICENSE"
     ],
     "dependencies": {
