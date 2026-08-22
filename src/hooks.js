@@ -63,6 +63,13 @@ export function registerHooks({
         request[state.settledSymbol] = false;
         ++state.inFlight;
         cancel();
+
+        // Fastify skips onResponse for hijacked replies (SSE/streaming), which
+        // would otherwise pin inFlight forever. Settlement is idempotent via
+        // settledSymbol, so this fallback is a no-op for ordinary requests.
+        request.raw?.once?.("close", () => {
+            settleRequest(request, "raw-close");
+        });
     });
 
     fastify.addHook("onResponse", async (request) => {
