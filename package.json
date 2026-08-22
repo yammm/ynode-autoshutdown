@@ -1,6 +1,6 @@
 {
     "name": "@ynode/autoshutdown",
-    "version": "1.9.0+336698",
+    "version": "1.9.0+336699",
     "description": "Fastify 5 plugin that shuts down idle workers after a period of inactivity",
     "main": "src/plugin.js",
     "types": "index.d.ts",
@@ -39,7 +39,6 @@
         "auto-changelog": "^2.6.0",
         "eslint": "^10.7.0",
         "eslint-config-prettier": "^10.1.8",
-        "eslint-plugin-prettier": "^5.5.6",
         "eslint-plugin-simple-import-sort": "^14.0.0",
         "fastify": "^5.10.0",
         "globals": "^17.7.0",
