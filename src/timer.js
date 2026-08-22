@@ -1,7 +1,7 @@
 /**
  * Creates the idle shutdown timer controller with schedule/cancel operations.
  * @param {object} deps - Injected dependencies.
- * @param {object} deps.state - Shared mutable state (timer, graceTimer, nextAt, inFlight, isShuttingDown).
+ * @param {object} deps.state - Shared mutable state (timer, graceTimer, nextAt, inFlight, hasListened, isShuttingDown).
  * @param {number} deps.delay - Base delay in milliseconds before shutdown fires.
  * @param {number} deps.jitter - Jitter in seconds added to delay to stagger herd exits.
  * @param {function(string): Promise<void>} deps.shutdown - Shutdown handler to invoke when timer expires.
@@ -17,7 +17,9 @@ export function createTimerController({ state, delay, jitter, shutdown }) {
     }
 
     function schedule() {
-        if (state.isShuttingDown || state.graceTimer) {
+        // Never arm before onListen: requests settled pre-listen (inject()
+        // warmups, custom server factories) must not bypass the grace period.
+        if (state.isShuttingDown || !state.hasListened || state.graceTimer) {
             return null;
         }
 

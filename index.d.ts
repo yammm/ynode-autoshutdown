@@ -54,7 +54,11 @@ export interface AutoshutdownOptions {
 }
 
 export interface AutoshutdownControl {
-    /** Arms or re-arms the idle timer; ignored during active startup grace or after closing starts. */
+    /**
+     * Arms or re-arms the idle timer; ignored before the server is listening,
+     * during active startup grace, while requests are in flight, or after
+     * closing starts.
+     */
     reset(): void;
     /** Cancels the idle shutdown timer. */
     cancel(): void;

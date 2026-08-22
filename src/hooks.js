@@ -85,6 +85,7 @@ export function registerHooks({
     });
 
     fastify.addHook("onListen", async () => {
+        state.hasListened = true;
         if (grace > 0) {
             log.debug(`Worker ${process.pid} in grace period (${grace}s)`);
         }

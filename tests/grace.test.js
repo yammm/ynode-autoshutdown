@@ -93,7 +93,7 @@ describe("Grace Period Logic", () => {
         });
         await app.ready();
         app.autoshutdown.reset();
-        assert.strictEqual(typeof app.autoshutdown.nextAt, "number");
+        assert.strictEqual(app.autoshutdown.nextAt, null, "timer must not arm before listen");
         await app.listen({ port: 0, host: "127.0.0.1" });
 
         try {

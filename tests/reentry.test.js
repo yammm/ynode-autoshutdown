@@ -39,8 +39,7 @@ describe("Shutdown Re-entry Protection", () => {
                 }
             });
 
-            await app.ready();
-            app.autoshutdown.reset();
+            await app.listen({ port: 0, host: "127.0.0.1" });
 
             await sleep(260);
 

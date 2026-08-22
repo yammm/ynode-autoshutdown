@@ -19,8 +19,8 @@ describe("Ignore URLs Edge Cases", () => {
             jitter: 0,
             ignoreUrls: [globalPattern, stickyPattern],
         });
-        await app.ready();
-
+        await app.listen({ port: 0, host: "127.0.0.1" });
+        await new Promise((resolve) => setTimeout(resolve, 10));
         app.autoshutdown.reset();
         const initialNextAt = app.autoshutdown.nextAt;
         for (const url of ["/health", "/health", "/metrics", "/metrics"]) {
@@ -46,8 +46,8 @@ describe("Ignore URLs Edge Cases", () => {
             ignoreUrls: ["/health", "/missing"],
         });
 
-        await app.ready();
-
+        await app.listen({ port: 0, host: "127.0.0.1" });
+        await new Promise((resolve) => setTimeout(resolve, 10));
         app.autoshutdown.reset();
         const initialNextAt = app.autoshutdown.nextAt;
         assert.ok(typeof initialNextAt === "number");

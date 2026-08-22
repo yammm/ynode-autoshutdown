@@ -5,7 +5,13 @@ import { createTimerController } from "../src/timer.js";
 
 test("configured jitter is not silently capped by the base delay", () => {
     const originalRandom = Math.random;
-    const state = { timer: null, nextAt: null, inFlight: 0, isShuttingDown: false };
+    const state = {
+        timer: null,
+        nextAt: null,
+        inFlight: 0,
+        hasListened: true,
+        isShuttingDown: false,
+    };
     Math.random = () => 0.75;
     try {
         const timer = createTimerController({

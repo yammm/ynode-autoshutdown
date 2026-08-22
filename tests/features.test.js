@@ -29,8 +29,7 @@ describe("Feature Options", () => {
                 exitProcess: false,
             });
 
-            await app.ready();
-            app.autoshutdown.reset();
+            await app.listen({ port: 0, host: "127.0.0.1" });
             await sleep(160);
 
             assert.strictEqual(closeCalled, true);
@@ -58,8 +57,7 @@ describe("Feature Options", () => {
                 exitProcess: true,
             });
 
-            await app.ready();
-            app.autoshutdown.reset();
+            await app.listen({ port: 0, host: "127.0.0.1" });
             await sleep(160);
 
             assert.strictEqual(exitCode, 0);
@@ -98,8 +96,7 @@ describe("Feature Options", () => {
                 exitProcess: true,
             });
 
-            await app.ready();
-            app.autoshutdown.reset();
+            await app.listen({ port: 0, host: "127.0.0.1" });
             await sleep(160);
 
             assert.strictEqual(
@@ -149,8 +146,7 @@ describe("Feature Options", () => {
                 exitProcess: true,
             });
 
-            await app.ready();
-            app.autoshutdown.reset();
+            await app.listen({ port: 0, host: "127.0.0.1" });
             await sleep(160);
 
             assert.strictEqual(exitCode, 0, "should still exit cleanly without disconnect");
@@ -181,8 +177,7 @@ describe("Feature Options", () => {
             },
         });
 
-        await app.ready();
-        app.autoshutdown.reset();
+        await app.listen({ port: 0, host: "127.0.0.1" });
         await sleep(160);
 
         assert.strictEqual(startEvents.length, 1);
@@ -217,8 +212,7 @@ describe("Feature Options", () => {
             }
         });
 
-        await app.ready();
-        app.autoshutdown.reset();
+        await app.listen({ port: 0, host: "127.0.0.1" });
         await sleep(180);
 
         assert.ok(
@@ -296,8 +290,8 @@ describe("Feature Options", () => {
             ignore: (request, path) => request.method === "GET" && path === "/health",
         });
 
-        await app.ready();
-
+        await app.listen({ port: 0, host: "127.0.0.1" });
+        await sleep(10);
         app.autoshutdown.reset();
         const initialNextAt = app.autoshutdown.nextAt;
         assert.ok(typeof initialNextAt === "number");

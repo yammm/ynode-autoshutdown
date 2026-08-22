@@ -29,6 +29,13 @@ describe("Decorated Control Surface", () => {
         assert.strictEqual(app.autoshutdown.nextAt, null);
         assert.strictEqual(app.autoshutdown.inFlight, 0);
 
+        app.autoshutdown.reset();
+        assert.strictEqual(app.autoshutdown.nextAt, null, "reset is a no-op before listen");
+
+        await app.listen({ port: 0, host: "127.0.0.1" });
+        await sleep(20); // let the zero-length grace period elapse
+        app.autoshutdown.cancel();
+
         const resetResult = app.autoshutdown.reset();
         assert.strictEqual(resetResult, undefined, "reset must not expose its Timeout handle");
         const firstNextAt = app.autoshutdown.nextAt;
