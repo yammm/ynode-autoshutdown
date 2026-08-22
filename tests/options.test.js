@@ -109,6 +109,20 @@ describe("Option Validation", () => {
         }
     });
 
+    test("rejects unknown option keys with a TypeError naming them", async () => {
+        const app = Fastify();
+        try {
+            app.register(autoShutdown, { slep: 600 });
+            await assert.rejects(app.ready(), (err) => {
+                assert.ok(err instanceof TypeError);
+                assert.match(err.message, /unknown option\(s\): slep/);
+                return true;
+            });
+        } finally {
+            await app.close();
+        }
+    });
+
     test("undefined option values retain their defaults", async () => {
         const app = Fastify();
         try {

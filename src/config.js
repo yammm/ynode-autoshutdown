@@ -21,8 +21,14 @@ const DEFAULTS = {
  * Merges user-supplied options with defaults to produce a complete configuration.
  * @param {object} [options] - Partial plugin options.
  * @returns {object} Full configuration with all defaults applied.
+ * @throws {TypeError} If any option key is not a recognized option.
  */
 export function createConfig(options = {}) {
+    const unknownKeys = Object.keys(options).filter((key) => !(key in DEFAULTS));
+    if (unknownKeys.length > 0) {
+        throw new TypeError(`@ynode/autoshutdown: unknown option(s): ${unknownKeys.join(", ")}`);
+    }
+
     const definedOptions = Object.fromEntries(
         Object.entries(options).filter(([, value]) => value !== undefined),
     );
