@@ -25,6 +25,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import fp from "fastify-plugin";
 
+import { createActivityController } from "./activity.js";
 import { createConfig, validateConfig } from "./config.js";
 import { createHeartbeatController } from "./heartbeat.js";
 import { registerHooks } from "./hooks.js";
@@ -130,6 +131,12 @@ async function autoShutdownPlugin(fastify, options = {}) {
         shutdown: shutdownController.run,
     });
 
+    const activity = createActivityController({
+        state,
+        schedule: timer.schedule,
+        cancel: timer.cancel,
+    });
+
     const heartbeat = createHeartbeatController({
         state,
         reportLoad: cfg.reportLoad,
@@ -182,6 +189,14 @@ async function autoShutdownPlugin(fastify, options = {}) {
                 throw new TypeError("@ynode/autoshutdown: `trigger` must be a non-empty string");
             }
             return shutdownController.run(trigger);
+        },
+        /** Acquires a lease that prevents idle shutdown until its release function is called. */
+        acquire(label) {
+            return activity.acquire(label);
+        },
+        /** Holds an activity lease until the supplied promise-like value settles. */
+        track(promise, label) {
+            return activity.track(promise, label);
         },
         get inFlight() {
             return state.inFlight;

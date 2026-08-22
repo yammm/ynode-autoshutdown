@@ -24,7 +24,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 /**
  * Creates the idle shutdown timer controller with schedule/cancel operations.
  * @param {object} deps - Injected dependencies.
- * @param {object} deps.state - Shared mutable state (timer, graceTimer, nextAt, inFlight, hasListened, isShuttingDown).
+ * @param {object} deps.state - Shared mutable state (timer, graceTimer, nextAt, inFlight, activityLeases, hasListened, isShuttingDown).
  * @param {number} deps.delay - Base delay in milliseconds before shutdown fires.
  * @param {number} deps.jitter - Jitter in seconds added to delay to stagger herd exits.
  * @param {function(string): Promise<void>} deps.shutdown - Shutdown handler to invoke when timer expires.
@@ -47,7 +47,7 @@ export function createTimerController({ state, delay, jitter, shutdown }) {
         }
 
         cancel();
-        if (state.inFlight > 0) {
+        if (state.inFlight > 0 || state.activityLeases.size > 0) {
             return null;
         }
 

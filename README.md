@@ -238,6 +238,8 @@ The plugin decorates the Fastify instance with a control object, `fastify.autosh
 - **`app.autoshutdown.reset()`**: Manually arms/re-arms the idle timer. It is a no-op before the server starts listening, while startup grace is active, while `inFlight > 0`, or after closing begins.
 - **`app.autoshutdown.cancel()`**: Manually cancels the timer.
 - **`app.autoshutdown.shutdown(trigger)`**: Initiates the shutdown sequence with a custom trigger name (default `"manual"`); the name flows into lifecycle hook events. Throws a `TypeError` unless `trigger` is a non-empty string and resolves once the shutdown attempt settles. Concurrent calls join the active attempt.
+- **`app.autoshutdown.acquire(label?)`**: Acquires a non-request activity lease and cancels the idle timer. It returns an idempotent release function; the timer is re-armed after the final active lease releases. Optional labels must be non-empty strings and are included in debug diagnostics when an idle-shutdown race stands down.
+- **`app.autoshutdown.track(promise, label?)`**: Holds an activity lease until a promise-like value fulfills or rejects, returning a promise with the same settlement. Invalid promise-like values or labels throw `TypeError`.
 - **`app.autoshutdown.inFlight`**: (getter) Returns the number of active, non-ignored requests.
 - **`app.autoshutdown.nextAt`**: (getter) Returns the epoch timestamp (ms) when the timer will fire, or `null`.
 - **`app.autoshutdown.delay`**: (getter) Returns the configured base delay in milliseconds.
@@ -252,6 +254,24 @@ webSocket.on("message", (data) => {
 // Example: orchestrator-driven drain with a custom trigger name
 await app.autoshutdown.shutdown("drain");
 ```
+
+### Background Activity Leases
+
+Request tracking cannot see queue consumers, scheduled work, or activity on an ignored long-lived connection. Use a lease to prevent idle shutdown while that work is active:
+
+```javascript
+const release = app.autoshutdown.acquire("invoice-batch");
+try {
+    await processInvoiceBatch();
+} finally {
+    release();
+}
+
+// `track` is the concise equivalent and always releases on fulfillment or rejection.
+await app.autoshutdown.track(refreshSearchIndex(), "search-index-refresh");
+```
+
+Overlapping leases compose: releasing one lease does not re-arm the timer until every lease has been released. A release function may safely be called more than once. Acquiring after shutdown begins throws because the committed shutdown can no longer be held open.
 
 ### Resource-Based Shutdown
 

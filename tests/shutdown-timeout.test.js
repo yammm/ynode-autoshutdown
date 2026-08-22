@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createShutdownHandler } from "../src/shutdown.js";
+import { createState } from "../src/state.js";
 
 function createAbandonHarness() {
     const completeEvents = [];
@@ -13,7 +14,8 @@ function createAbandonHarness() {
         resolveClose = resolve;
         rejectClose = reject;
     });
-    const state = { isShuttingDown: false, inFlight: 0, nextAt: 1234 };
+    const state = createState();
+    state.nextAt = 1234;
     const shutdown = createShutdownHandler({
         state,
         fastify: {
@@ -53,7 +55,8 @@ function createHarness({ force }) {
     const closePromise = new Promise((resolve) => {
         resolveClose = resolve;
     });
-    const state = { isShuttingDown: false, inFlight: 0, nextAt: 1234 };
+    const state = createState();
+    state.nextAt = 1234;
     const fastify = {
         close: () => closePromise,
         server: {

@@ -23,7 +23,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 /**
  * Creates the shared mutable state object used across all plugin modules.
- * @returns {{ timer: null, graceTimer: null, intervalTimer: null, nextAt: null, inFlight: number, hasListened: boolean, isShuttingDown: boolean, closeRequested: boolean, ignoredSymbol: symbol, trackedSymbol: symbol, settledSymbol: symbol }}
+ * @returns {{ timer: null, graceTimer: null, intervalTimer: null, nextAt: null, inFlight: number, activityLeases: Map<symbol, string|null>, hasListened: boolean, isShuttingDown: boolean, closeRequested: boolean, ignoredSymbol: symbol, trackedSymbol: symbol, settledSymbol: symbol }}
  */
 export function createState() {
     return {
@@ -32,6 +32,7 @@ export function createState() {
         intervalTimer: null,
         nextAt: null,
         inFlight: 0,
+        activityLeases: new Map(),
         hasListened: false,
         isShuttingDown: false,
         closeRequested: false,

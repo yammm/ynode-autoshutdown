@@ -89,6 +89,17 @@ export interface AutoshutdownControl {
      * @param trigger Non-empty trigger name. @default "manual"
      */
     shutdown(trigger?: string): Promise<void>;
+    /**
+     * Acquires a non-request activity lease. The returned release function is
+     * idempotent; the idle timer is re-armed only after the final lease releases.
+     * Labels, when supplied, must be non-empty strings. Throws after shutdown starts.
+     */
+    acquire(label?: string): () => void;
+    /**
+     * Acquires an activity lease until the promise-like value settles, preserving
+     * its fulfillment value or rejection. Labels, when supplied, must be non-empty strings.
+     */
+    track<T>(promise: PromiseLike<T>, label?: string): Promise<T>;
     /** Current number of in-flight requests. */
     readonly inFlight: number;
     /** Epoch timestamp (ms) when the timer will fire, or null if not armed. */

@@ -28,6 +28,10 @@ app.onAutoShutdownCommit((event: AutoShutdownCommitEvent, instance) => {
 const shutdown: Promise<void> = app.autoshutdown.shutdown("type-test");
 const inFlight: number = app.autoshutdown.inFlight;
 const nextAt: number | null = app.autoshutdown.nextAt;
+const release: () => void = app.autoshutdown.acquire("type-test-work");
+const tracked: Promise<number> = app.autoshutdown.track(Promise.resolve(42), "type-test-promise");
+release();
 void shutdown;
 void inFlight;
 void nextAt;
+void tracked;
