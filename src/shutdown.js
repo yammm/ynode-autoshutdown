@@ -124,6 +124,18 @@ export function createShutdownHandler({
             return;
         }
 
+        // A queued timer callback can begin shutdown after a request arrives:
+        // cancel() cannot unqueue an already-fired callback. Recheck in-flight
+        // work here and stand down; settlement re-arms the timer.
+        if (trigger === "idle_timer" && state.inFlight > 0) {
+            log.debug(
+                { inFlight: state.inFlight },
+                "Idle shutdown skipped; requests arrived after the timer fired",
+            );
+            schedule();
+            return;
+        }
+
         state.isShuttingDown = true;
         const nextAt = state.nextAt;
         cancel();
