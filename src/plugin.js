@@ -155,6 +155,20 @@ async function autoShutdownPlugin(fastify, options = {}) {
         cancel() {
             timer.cancel();
         },
+        /**
+         * Initiates the shutdown sequence with a custom trigger name that is
+         * passed through to lifecycle hook events. No-op if a shutdown is
+         * already in progress.
+         * @param {string} [trigger="manual"] Non-empty trigger name.
+         * @returns {Promise<void>} Resolves when the shutdown attempt settles.
+         * @throws {TypeError} If trigger is not a non-empty string.
+         */
+        async shutdown(trigger = "manual") {
+            if (typeof trigger !== "string" || trigger.trim() === "") {
+                throw new TypeError("@ynode/autoshutdown: `trigger` must be a non-empty string");
+            }
+            return shutdown(trigger);
+        },
         get inFlight() {
             return state.inFlight;
         },

@@ -228,8 +228,9 @@ await app.register(autoShutdown, {
 
 The plugin decorates the Fastify instance with a control object, `fastify.autoshutdown`, for manual control and inspection.
 
-- **`app.autoshutdown.reset()`**: Manually arms/re-arms the idle timer. It is ignored while startup grace is active or after closing begins.
+- **`app.autoshutdown.reset()`**: Manually arms/re-arms the idle timer. It is a no-op before the server starts listening, while startup grace is active, while `inFlight > 0`, or after closing begins.
 - **`app.autoshutdown.cancel()`**: Manually cancels the timer.
+- **`app.autoshutdown.shutdown(trigger)`**: Initiates the shutdown sequence with a custom trigger name (default `"manual"`); the name flows into lifecycle hook events. Throws a `TypeError` unless `trigger` is a non-empty string; resolves once the shutdown attempt settles and is a no-op if a shutdown is already in progress.
 - **`app.autoshutdown.inFlight`**: (getter) Returns the number of active, non-ignored requests.
 - **`app.autoshutdown.nextAt`**: (getter) Returns the epoch timestamp (ms) when the timer will fire, or `null`.
 - **`app.autoshutdown.delay`**: (getter) Returns the configured base delay in milliseconds.
@@ -240,6 +241,9 @@ webSocket.on("message", (data) => {
     // some logic...
     app.autoshutdown.reset();
 });
+
+// Example: orchestrator-driven drain with a custom trigger name
+await app.autoshutdown.shutdown("drain");
 ```
 
 ### Resource-Based Shutdown

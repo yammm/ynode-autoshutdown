@@ -68,6 +68,13 @@ export interface AutoshutdownControl {
     reset(): void;
     /** Cancels the idle shutdown timer. */
     cancel(): void;
+    /**
+     * Initiates the shutdown sequence with a custom trigger name that is
+     * passed through to lifecycle hook events. No-op if a shutdown is already
+     * in progress. Throws a TypeError if trigger is not a non-empty string.
+     * @param trigger Non-empty trigger name. @default "manual"
+     */
+    shutdown(trigger?: string): Promise<void>;
     /** Current number of in-flight requests. */
     readonly inFlight: number;
     /** Epoch timestamp (ms) when the timer will fire, or null if not armed. */
