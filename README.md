@@ -75,7 +75,7 @@ The plugin accepts the following options:
 | --- | --- | --- | --- |
 | `sleep` | `number` | `1800` | The inactivity period in **seconds** before shutting down. |
 | `grace` | `number` | `30` | A grace period in **seconds** after startup before the inactivity timer is armed. |
-| `ignoreUrls` | `Array<string \| RegExp>` | `[]` | An array of URL paths or `RegExp` patterns to ignore for timer logic. |
+| `ignoreUrls` | `Array<string \| RegExp>` | `[]` | Route patterns (e.g. `/users/:id`) or `RegExp` patterns to ignore for timer logic. Matched against the route pattern; raw URL fallback for 404s. |
 | `ignore` | `(request, path) => boolean` | `null` | Optional function matcher for ignore logic. Return `true` to ignore that request. |
 | `jitter` | `number` | `5` | Adds a random delay (in **seconds**) to the sleep timer to avoid herd shutdowns. |
 | `force` | `boolean` | `false` | If `true`, use `server.closeAllConnections()` when graceful close exceeds `closeTimeout`. **May drop active clients.** |
@@ -132,7 +132,8 @@ await app.register(autoShutdown, {
 - The plugin calls `process.exit(0)` after successful shutdown and `process.exit(1)` if `fastify.close()` fails.
 - Set `exitProcess: false` when this plugin runs in-process with other workloads and you do not want worker exit behavior.
 - Duplicate plugin registration in the same Fastify encapsulation scope throws an error.
-- String `ignoreUrls` are exact path matches; query strings are stripped before matching. Use `RegExp` for pattern-based matching.
+- `ignoreUrls` entries are matched against the Fastify **route pattern** (for example `/users/:id`, via `request.routeOptions.url`), not the raw request URL; the raw URL (query string stripped) is used as a fallback only for requests that match no route (404s). String entries must equal the route pattern exactly; use `RegExp` for pattern-based matching.
+- The plugin installs no `SIGTERM`/`SIGINT` handlers; signal-driven shutdown remains the host application's responsibility (process managers or plugins such as `@ynode/bootify` and `@ynode/cluster` own that concern).
 - Use `ignore(request, path)` for method/header/query-aware matching.
 - Graceful close is bounded by `closeTimeout`. With `force: false`, a timeout is reported as a shutdown error. With `force: true`, active connections are closed and the plugin waits one additional bounded close phase.
 - A reported close timeout does not abort the underlying `fastify.close()`. With `exitProcess: false`, the instance may still finish closing (or fail) after the `"error"` outcome was delivered; the plugin logs that late settlement when it happens.

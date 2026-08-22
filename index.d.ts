@@ -25,7 +25,12 @@ export interface AutoshutdownOptions {
     sleep?: number;
     /** Grace period in seconds after startup before the timer arms. @default 30 */
     grace?: number;
-    /** URL paths or patterns to exclude from idle timer tracking. @default [] */
+    /**
+     * Route patterns (e.g. "/users/:id") or RegExp patterns to exclude from
+     * idle timer tracking. Matched against the Fastify route pattern, with a
+     * raw-URL fallback (query string stripped) only for unrouted 404s.
+     * @default []
+     */
     ignoreUrls?: (string | RegExp)[];
     /** Custom predicate to exclude requests from idle timer tracking. */
     ignore?: ((request: FastifyRequest, path: string) => boolean) | null;
