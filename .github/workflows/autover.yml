@@ -3,6 +3,8 @@ name: autover
 on:
     pull_request:
         types: [opened, synchronize, reopened, labeled, unlabeled]
+    push:
+        branches: [main]
     workflow_dispatch:
 
 permissions:
@@ -79,12 +81,6 @@ jobs:
                       core.setOutput('number', pr.number.toString());
                       core.setOutput('has_required', hasRequired ? 'true' : 'false');
 
-            - name: Exit if no PR or missing required label
-              if: ${{ steps.pr.outputs.found != 'true' || steps.pr.outputs.has_required != 'true' }}
-              run: |
-                  echo "Guarded apply skipped."
-                  exit 0
-
             - name: Configure Git author
               run: |
                   git config user.name "github-actions[bot]"
@@ -92,6 +88,7 @@ jobs:
 
             - name: Run autover (apply)
               id: apply_autover
+              if: ${{ steps.pr.outputs.found == 'true' && steps.pr.outputs.has_required == 'true' }}
               run: |
                   set -euo pipefail
                   line="$(npx --yes @mikinho/autover --workspaces --guard-unchanged --no-amend --short)"
