@@ -31,6 +31,7 @@ import { registerHooks } from "./hooks.js";
 import { normalizePath, shouldIgnoreRequest as shouldIgnoreRequestMatcher } from "./ignore.js";
 import { createLifecycle } from "./lifecycle.js";
 import { createShutdownHandler } from "./shutdown.js";
+import { createShutdownController } from "./shutdown-controller.js";
 import { createState } from "./state.js";
 import { createTimerController } from "./timer.js";
 
@@ -120,13 +121,13 @@ async function autoShutdownPlugin(fastify, options = {}) {
         log,
     });
 
-    let shutdown = async () => {};
+    const shutdownController = createShutdownController();
 
     const timer = createTimerController({
         state,
         delay,
         jitter: cfg.jitter,
-        shutdown: async (trigger) => shutdown(trigger),
+        shutdown: shutdownController.run,
     });
 
     const heartbeat = createHeartbeatController({
@@ -135,27 +136,29 @@ async function autoShutdownPlugin(fastify, options = {}) {
         memoryLimit: cfg.memoryLimit,
         heartbeatInterval: cfg.heartbeatInterval,
         log,
-        shutdown: async (trigger) => shutdown(trigger),
+        shutdown: shutdownController.run,
     });
 
-    shutdown = createShutdownHandler({
-        state,
-        fastify,
-        log,
-        force: cfg.force,
-        closeTimeout: cfg.closeTimeout,
-        exitProcess: cfg.exitProcess,
-        shutdownHooks,
-        shutdownStartHooks,
-        shutdownCommitHooks,
-        shutdownCompleteHooks,
-        runHookWithTimeout: lifecycle.runHookWithTimeout,
-        runLifecycleHooks: lifecycle.runLifecycleHooks,
-        schedule: timer.schedule,
-        cancel: timer.cancel,
-        startHeartbeat: heartbeat.startHeartbeat,
-        stopHeartbeat: heartbeat.stopHeartbeat,
-    });
+    shutdownController.bind(
+        createShutdownHandler({
+            state,
+            fastify,
+            log,
+            force: cfg.force,
+            closeTimeout: cfg.closeTimeout,
+            exitProcess: cfg.exitProcess,
+            shutdownHooks,
+            shutdownStartHooks,
+            shutdownCommitHooks,
+            shutdownCompleteHooks,
+            runHookWithTimeout: lifecycle.runHookWithTimeout,
+            runLifecycleHooks: lifecycle.runLifecycleHooks,
+            schedule: timer.schedule,
+            cancel: timer.cancel,
+            startHeartbeat: heartbeat.startHeartbeat,
+            stopHeartbeat: heartbeat.stopHeartbeat,
+        }),
+    );
 
     fastify.decorate("autoshutdown", {
         /** Arms or re-arms the idle timer when lifecycle state permits it. */
@@ -178,7 +181,7 @@ async function autoShutdownPlugin(fastify, options = {}) {
             if (typeof trigger !== "string" || trigger.trim() === "") {
                 throw new TypeError("@ynode/autoshutdown: `trigger` must be a non-empty string");
             }
-            return shutdown(trigger);
+            return shutdownController.run(trigger);
         },
         get inFlight() {
             return state.inFlight;
